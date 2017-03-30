@@ -157,6 +157,28 @@ class AIPlayer(Player):
                                             #HW5: NEURAL NETS#
     #----------------------------------------------------------------------------------------------------------------#
     ##
+    # mapState
+    #
+    # Description: Takes GameState and evaluates it with a neural net
+    #
+    def mapState(self, state):
+        #create array
+        stateMapping = []
+
+
+        #store references of players' resources
+        myInv = state.inventories[state.whoseTurn]
+
+        foeInv = state.inventories[(state.whoseTurn+1) % 2]
+
+        myQueen = myInv.getQueen()
+
+        foeQueen = foeInv.getQueen()
+
+        return stateMapping
+
+
+    ##
     # initNeuralNet
     #
     # Description: Takes GameState and evaluates it with a neural net
