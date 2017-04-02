@@ -44,7 +44,6 @@ class AIPlayer(Player):
         self.WINNING_VALUE = 1000
         self.LOSING_VALUE = 0
 
-
         #input 0
         self.tunnelDist = 0
 
@@ -62,7 +61,7 @@ class AIPlayer(Player):
         self.weightList = []
 
         #biases for each node
-        self.biases = []
+        self.bias = 1
 
         #outputs for each node
         self.outputs = [0.0, 0.0, 0.0]
@@ -132,9 +131,9 @@ class AIPlayer(Player):
     # Return: The Move to be made
     ##
     def getMove(self, currentState):
-        begTime = time.clock()
         move = self.expandCurrentState(currentState, 0)
-        # print "Time to find move: ", time.clock() - begTime
+
+
         if move == None:
             move = Move(END, None, None)
 
@@ -164,6 +163,25 @@ class AIPlayer(Player):
     def mapState(self, state):
         #create array
         stateMapping = []
+        foodList = []
+        self.myFood = None
+        self.myTunnel = None
+        self.myHill = None
+
+        # the first time this method is called, the food and tunnel locations
+        # need to be recorded in their respective instance variables
+        if self.myTunnel is None and len(getConstrList(prevState, self.playerId, (TUNNEL,))) > 0:
+            self.myTunnel = getConstrList(prevState, self.playerId, (TUNNEL,))[0]
+        if self.myHill is None:
+            self.myHill = getConstrList(prevState, self.playerId, (ANTHILL,))[0]
+        if self.myFood is None:
+            foods = getConstrList(prevState, None, (FOOD,))
+            self.myFood = foods[0]
+            # find the food closest to the tunnel
+            bestDistSoFar = 1000  # i.e., infinity
+            for food in foods:
+                if food.coords[1] < 4:
+                    foodList.append(food)
 
 
         #store references of players' resources
@@ -173,7 +191,70 @@ class AIPlayer(Player):
 
         myQueen = myInv.getQueen()
 
+        myWorkers = getAntList(state, state.whoseTurn, (WORKER,))[0]
+
         foeQueen = foeInv.getQueen()
+
+        targetFood = foodList[0]
+
+
+
+        #store references of ant distances
+        # Find the closest food to this ant
+        bestDistSoFar = 1000
+        for worker in myWorkers:
+            for food in foodList:
+                if approxDist(workers[worker].coords, food.coords) < bestDistSoFar:
+                    bestDistSoFar = approxDist(workers[worker].coords, food.coords)
+                    targetFood = food
+
+
+        # Find the closest tunnel to this ant
+        if approxDist(workers[worker].coords, self.myTunnel.coords) < approxDist(workers[worker].coords, self.myHill.coords):
+            targetTunnel = self.myTunnel
+        else:
+            targetTunnel = self.myHill
+
+
+        # queen on hill -> 0 or 1
+        stateMapping.append(float(myQueen.coords == self.hillCoords))
+
+        stateMapping.append((len(myInv.ants) - 1))
+
+
+        #Default ant distances are 1
+        stateMapping.append(0.0) #worker 1 from hill
+        stateMapping.append(0.0) #worker 1  from food
+        stateMapping.append(0.0) #worker 2 from hill
+        stateMapping.append(0.0) #worker 2  from food
+        stateMapping.append(0.0) #worker 3 from hill
+        stateMapping.append(0.0) #worker 3  from food
+        stateMapping.append(0.0) #soldier 1 from hill
+        stateMapping.append(0.0) #soldier 1
+
+        # if player has lost, set the "win/loss" value to 0.0
+        if playerQueen is None or enemyInv.foodCount >= 11:
+            stateArray.append(0.0)
+        # if player has won, set the "win/loss" value to 1.0
+        elif enemyQueen is None or playerInv.foodCount >= 11:
+            stateArray.append(1.0)
+        # haven't won or loss yet, keep "win/loss" value at 0.5
+        else:
+            stateArray.append(0.5)
+
+
+        antDistanceIdx = 2
+        for ant in myInv.ants:
+            if ant != myQueen:
+                stateMapping[antDistanceIdx] = approxDist(ant.coords, targetTunnel)
+                antDistanceIdx += 1
+                stateMapping[antDistanceIdx] = approxDist(ant.coords, targetFood)
+                antDistanceIdx += 1
+                if (antDistanceIdx >= 8):
+                    break
+
+
+        stateMapping.append(self.bias) #bias starts at 1
 
         return stateMapping
 
@@ -185,6 +266,16 @@ class AIPlayer(Player):
     #
     def initNeuralNet(self):
         return 0
+
+
+    def matrixOps(self, stateMapping):
+        return 0
+
+    def applyGFxn(self, matrix1, matrix2):
+        resultMatrix = np.(matrix1, matrix2) #use numpy to multiply both matrices togeher
+        return [[1/(1 + math.e**-el) for el in resultMatrix[0]]]
+
+
 
 
     ##
@@ -366,7 +457,6 @@ class AIPlayer(Player):
 
 
 
-
         ###
         # We need our soldiers to be moving towards a target. These targets are, in priority:
         #   1) Enemy Workers
@@ -538,6 +628,64 @@ class AIPlayer(Player):
                         bestValue = node.value
 
                 return bestMove
+
+
+        ##
+        # backpropogation
+        # Description: Given a target value and actual value, determines
+        #   how "wrong" the input weights of the perceptrons in the
+        #   neural network are and adjusts them using the backpropogation
+        #   algorithm. The higher the "alpha value", the larger the
+        #   adjustments and vice versa. (See pseudocode in function's
+        #   comments for the algorithm.)
+        #
+        # Notes:
+        #   The neural network's weight matrices are changed by this
+        #   function.
+        #
+        # Parameters:
+        #   self - The object pointer
+        #   targetVal - The expected value of the state (determined
+        #       using evaluateState)
+        #   actualVal - The actual value of the state (found
+        #       using the neural network)
+        #
+        # Return: Nothing
+        #
+        def backpropogation(self, targetVal, actualVal):
+           # determine output perceptron error
+            err = targetVal - actualVal
+            # calculate the delta value using the error
+            delta = actualVal*(1-actualVal)*err
+
+            # hidden layer perceptron errors
+            errs = [weight[0]*delta for weight in self.outputLayerWeights]
+            # calculate the deltas for all of the hidden layer perceptrons
+            # using their respective errors
+            deltas = [b*(1-b)*errs[idx] for idx, b in enumerate(self.hiddenLayerOutputs[0])]
+
+            ##
+            # Backpropogation algorithm!
+            # Adjust each weight in the network:  W_ij = W_ij + alpha * delta_j * x_i where:
+            # W_ij is the weight between nodes i and j
+            # alpha is a learning rate
+            # delta_j is the error term for node j
+            # x_i  is the input that the weight was applied to
+            #
+            # adjust output layer weights
+            self.outputLayerWeights = [[weight[0] + self.alpha*delta*self.hiddenLayerOutputs[0][idx]] for idx, weight in enumerate(self.outputLayerWeights)]
+
+            # adjust hidden layer weights
+            for idx_i, row in enumerate(self.hiddenLayerWeights):
+                for idx_j, weight in enumerate(row):
+                    self.hiddenLayerWeights[idx_i][idx_j] += self.alpha*deltas[idx_j]*self.neuralNetInput[idx_i]
+
+            return
+
+
+
+
+
 
         ##
         # hasWon
