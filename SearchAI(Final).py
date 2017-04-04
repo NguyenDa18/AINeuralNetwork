@@ -41,8 +41,11 @@ class AIPlayer(Player):
         self.DESIRED_SOLDIERS = 2
         self.MIN_FOOD = 2
         self.depth = 2
-        self.WINNING_VALUE = 1000
-        self.LOSING_VALUE = 0
+        # self.WINNING_VALUE = 1000
+        # self.LOSING_VALUE = 0
+
+
+
 
         #input 0
         self.tunnelDist = 0
@@ -61,7 +64,7 @@ class AIPlayer(Player):
         self.weightList = []
 
         #biases for each node
-        self.bias = 1
+        self.biases = []
 
         #outputs for each node
         self.outputs = [0.0, 0.0, 0.0]
@@ -131,9 +134,9 @@ class AIPlayer(Player):
     # Return: The Move to be made
     ##
     def getMove(self, currentState):
+        begTime = time.clock()
         move = self.expandCurrentState(currentState, 0)
-
-
+        # print "Time to find move: ", time.clock() - begTime
         if move == None:
             move = Move(END, None, None)
 
@@ -156,110 +159,6 @@ class AIPlayer(Player):
                                             #HW5: NEURAL NETS#
     #----------------------------------------------------------------------------------------------------------------#
     ##
-    # mapState
-    #
-    # Description: Takes GameState and evaluates it with a neural net
-    #
-    def mapState(self, state):
-        #create array
-        stateMapping = []
-        foodList = []
-        self.myFood = None
-        self.myTunnel = None
-        self.myHill = None
-
-        # the first time this method is called, the food and tunnel locations
-        # need to be recorded in their respective instance variables
-        if self.myTunnel is None and len(getConstrList(prevState, self.playerId, (TUNNEL,))) > 0:
-            self.myTunnel = getConstrList(prevState, self.playerId, (TUNNEL,))[0]
-        if self.myHill is None:
-            self.myHill = getConstrList(prevState, self.playerId, (ANTHILL,))[0]
-        if self.myFood is None:
-            foods = getConstrList(prevState, None, (FOOD,))
-            self.myFood = foods[0]
-            # find the food closest to the tunnel
-            bestDistSoFar = 1000  # i.e., infinity
-            for food in foods:
-                if food.coords[1] < 4:
-                    foodList.append(food)
-
-
-        #store references of players' resources
-        myInv = state.inventories[state.whoseTurn]
-
-        foeInv = state.inventories[(state.whoseTurn+1) % 2]
-
-        myQueen = myInv.getQueen()
-
-        myWorkers = getAntList(state, state.whoseTurn, (WORKER,))[0]
-
-        foeQueen = foeInv.getQueen()
-
-        targetFood = foodList[0]
-
-
-
-        #store references of ant distances
-        # Find the closest food to this ant
-        bestDistSoFar = 1000
-        for worker in myWorkers:
-            for food in foodList:
-                if approxDist(workers[worker].coords, food.coords) < bestDistSoFar:
-                    bestDistSoFar = approxDist(workers[worker].coords, food.coords)
-                    targetFood = food
-
-
-        # Find the closest tunnel to this ant
-        if approxDist(workers[worker].coords, self.myTunnel.coords) < approxDist(workers[worker].coords, self.myHill.coords):
-            targetTunnel = self.myTunnel
-        else:
-            targetTunnel = self.myHill
-
-
-        # queen on hill -> 0 or 1
-        stateMapping.append(float(myQueen.coords == self.hillCoords))
-
-        stateMapping.append((len(myInv.ants) - 1))
-
-
-        #Default ant distances are 1
-        stateMapping.append(0.0) #worker 1 from hill
-        stateMapping.append(0.0) #worker 1  from food
-        stateMapping.append(0.0) #worker 2 from hill
-        stateMapping.append(0.0) #worker 2  from food
-        stateMapping.append(0.0) #worker 3 from hill
-        stateMapping.append(0.0) #worker 3  from food
-        stateMapping.append(0.0) #soldier 1 from hill
-        stateMapping.append(0.0) #soldier 1
-
-        # if player has lost, set the "win/loss" value to 0.0
-        if playerQueen is None or enemyInv.foodCount >= 11:
-            stateArray.append(0.0)
-        # if player has won, set the "win/loss" value to 1.0
-        elif enemyQueen is None or playerInv.foodCount >= 11:
-            stateArray.append(1.0)
-        # haven't won or loss yet, keep "win/loss" value at 0.5
-        else:
-            stateArray.append(0.5)
-
-
-        antDistanceIdx = 2
-        for ant in myInv.ants:
-            if ant != myQueen:
-                stateMapping[antDistanceIdx] = approxDist(ant.coords, targetTunnel)
-                antDistanceIdx += 1
-                stateMapping[antDistanceIdx] = approxDist(ant.coords, targetFood)
-                antDistanceIdx += 1
-                if (antDistanceIdx >= 8):
-                    break
-
-
-        stateMapping.append(self.bias) #bias starts at 1
-
-        return stateMapping
-
-
-    ##
     # initNeuralNet
     #
     # Description: Takes GameState and evaluates it with a neural net
@@ -267,15 +166,17 @@ class AIPlayer(Player):
     def initNeuralNet(self):
         return 0
 
-
-    def matrixOps(self, stateMapping):
-        return 0
-
-    def applyGFxn(self, matrix1, matrix2):
-        resultMatrix = np.(matrix1, matrix2) #use numpy to multiply both matrices togeher
-        return [[1/(1 + math.e**-el) for el in resultMatrix[0]]]
-
-
+    # #
+    # g
+    # Description: applies the 'g' function used by our neural network
+    #
+    # Parameters:
+    #   x - the variable to apply g to
+    #
+    # Return: g(x)
+    # #
+    def g(self, x):
+        return 1/(1+math.exp(-x))
 
 
     ##
@@ -285,59 +186,64 @@ class AIPlayer(Player):
     #
     def neuralNetEval(self, currentState):
         # Default value is 0.5, we will add/subtract from here
-        value = 0.5
+        # value = 0.5
 
         # Grab the playerIDs
         oppId = 0 if self.playerId == 1 else 1
-        foodList = []
-        self.myFood = None
-        self.myTunnel = None
-        self.myHill = None
+        #
+        # foodList = []
+        # self.myFood = None
+        # self.myTunnel = None
+        # self.myHill = None
 
-        ##### OUR STUFF #####
-        inventory = getCurrPlayerInventory(nextState)
-        workers = getAntList(nextState, self.playerId, (WORKER,))
-        soldiers = getAntList(nextState, self.playerId, (SOLDIER,))
-        drone = getAntList(nextState, self.playerId, (DRONE,))
-        ranger = getAntList(nextState, self.playerId, (R_SOLDIER,))
-        queen = inventory.getQueen()
+        # ##### OUR STUFF #####
+        inventory = getCurrPlayerInventory(currentState)
 
-        prevInventory = getCurrPlayerInventory(prevState)
-        prevWorkers = getAntList(prevState, self.playerId, (WORKER,))
-        prevSoldiers = getAntList(prevState, self.playerId, (SOLDIER,))
-        prevQueen = prevInventory.getQueen()
 
-        prevOppFighters = getAntList(prevState, oppId, (SOLDIER, DRONE, R_SOLDIER,))
+        # Winning/losing conditions
+        if self.hasWon(currentState, oppId): #we lose
+            value = 0
+            return value
+        elif self.hasWon(currentState, self.playerId): #we win
+            value = 1
+            return value
+        # workers = getAntList(nextState, self.playerId, (WORKER,))
+        # soldiers = getAntList(nextState, self.playerId, (SOLDIER,))
+        # drone = getAntList(nextState, self.playerId, (DRONE,))
+        # ranger = getAntList(nextState, self.playerId, (R_SOLDIER,))
+        # queen = inventory.getQueen()
+        # #
+        # prevInventory = getCurrPlayerInventory(prevState)
+        # prevWorkers = getAntList(prevState, self.playerId, (WORKER,))
+        # prevSoldiers = getAntList(prevState, self.playerId, (SOLDIER,))
+        # prevQueen = prevInventory.getQueen()
 
-        # the first time this method is called, the food and tunnel locations
-        # need to be recorded in their respective instance variables
-        if self.myTunnel is None and len(getConstrList(prevState, self.playerId, (TUNNEL,))) > 0:
-            self.myTunnel = getConstrList(prevState, self.playerId, (TUNNEL,))[0]
-        if self.myHill is None:
-            self.myHill = getConstrList(prevState, self.playerId, (ANTHILL,))[0]
-        if self.myFood is None:
-            foods = getConstrList(prevState, None, (FOOD,))
-            self.myFood = foods[0]
-            # find the food closest to the tunnel
-            bestDistSoFar = 1000  # i.e., infinity
-            for food in foods:
-                if food.coords[1] < 4:
-                    foodList.append(food)
+        # prevOppFighters = getAntList(prevState, oppId, (SOLDIER, DRONE, R_SOLDIER,))
+
+        #
+        # # the first time this method is called, the food and tunnel locations
+        # # need to be recorded in their respective instance variables
+        # if self.myTunnel is None and len(getConstrList(prevState, self.playerId, (TUNNEL,))) > 0:
+        #     self.myTunnel = getConstrList(prevState, self.playerId, (TUNNEL,))[0]
+        # if self.myHill is None:
+        #     self.myHill = getConstrList(prevState, self.playerId, (ANTHILL,))[0]
+        # if self.myFood is None:
+        #     foods = getConstrList(prevState, None, (FOOD,))
+        #     self.myFood = foods[0]
+        #     # find the food closest to the tunnel
+        #     bestDistSoFar = 1000  # i.e., infinity
+        #     for food in foods:
+        #         if food.coords[1] < 4:
+        #             foodList.append(food)
 
         # Array to store inputs
         net_inputs = []
 
-
-
-
-        # Winning/losing conditions
-        if self.hasWon(nextState, oppId):
-            value = self.LOSING_VALUE
-            return value
-        elif self.hasWon(nextState, self.playerId):
-            value = self.WINNING_VALUE
-            return value
-
+        net_inputs.append(evalQueen(inventory, currentState))
+        net_inputs.append(evalWorkers(inventory, currentState))
+        net_inputs.append(evalWorkerCarrying(inventory, currentState))
+        net_inputs.append(evalWorkerNotCarrying(inventory, currentState))
+        net_inputs.append(evalFoodCount(inventory, currentState))
 
 
         ###
@@ -345,97 +251,123 @@ class AIPlayer(Player):
         ###
         numWorkers = 0
 
-        # if len(prevWorkers) > len(workers):
-        #     numWorkers = len(workers)
+        #
+        # for idx in range(0, numWorkers):
+        #
+        #     targetFood = foodList[0]
+        #     targetTunnel = self.myTunnel
+        #
+        #     # Find the closest food to this ant
+        #     bestDistSoFar = 1000
+        #     for food in foodList:
+        #         if approxDist(prevWorkers[idx].coords, food.coords) < bestDistSoFar:
+        #             bestDistSoFar = approxDist(prevWorkers[idx].coords, food.coords)
+        #             targetFood = food
+        #
+        #
+        #     # Find the closest tunnel to this ant
+        #     if approxDist(prevWorkers[idx].coords, self.myTunnel.coords) < approxDist(prevWorkers[idx].coords, self.myHill.coords):
+        #         targetTunnel = self.myTunnel
+        #     else:
+        #         targetTunnel = self.myHill
+        #
+        #     # Compare how far we were to how close we are now, reward based on relative distance
+        #     prevDistTunnel = approxDist(prevWorkers[idx].coords, targetTunnel.coords)
+        #     #nextDistTunnel = approxDist(workers[idx].coords, targetTunnel.coords)
+        #     prevDistFood = approxDist(prevWorkers[idx].coords, targetFood.coords)
+        #     #nextDistFood = approxDist(workers[idx].coords, targetFood.coords)
+        #
+        #     if (prevWorkers[idx].carrying or prevDistFood == 0) and prevDistTunnel != 0:
+        #         if(approxDist(prevWorkers[idx].coords, targetTunnel.coords) > 7):
+        #             self.tunnelDist = 0.01
+        #         elif((approxDist(prevWorkers[idx].coords, targetTunnel.coords) > 3)):
+        #             self.tunnelDist = 0.03
+        #         elif((approxDist(prevWorkers[idx].coords, targetTunnel.coords) > 1)):
+        #             self.tunnelDist = 0.05
+        #         elif((approxDist(prevWorkers[idx].coords, targetTunnel.coords) == 0)):
+        #             self.tunnelDist = 0.1
+        #
+        #         #amount = self.rateMoveOnDist(prevDistTunnel, nextDistTunnel)
+        #         #value = value + amount
+        #     else:
+        #         if(approxDist(prevWorkers[idx].coords, targetFood.coords) > 7):
+        #                 value = value + 0.01
+        #         elif((approxDist(prevWorkers[idx].coords, targetFood.coords) > 3)):
+        #             value = value + 0.03
+        #         elif((approxDist(prevWorkers[idx].coords, targetFood.coords) > 1)):
+        #             value = value + 0.05
+        #         elif((approxDist(prevWorkers[idx].coords, targetFood.coords) == 0)):
+        #             value = value + 0.1
+        #
+        # if len(self.myFood) > 1:
+        #     value = value + 0.01
+        # elif len(self.myFood) > 3:
+        #     value = value + 0.05
+        # elif len(self.myFood) > 8:
+        #     value = value + 0.2
+        #
+        #
+        #
+        # # amount = self.rateMoveOnDist(prevDistFood, nextDistFood)
+        # # value = value + amount
+        #
+        #
+        # #Ant number preferences
+        # # Limit the number of ants we have for each type
+        # if len(workers) > self.DESIRED_WORKERS:
+        #     value = value - 0.5
+        # elif len(workers) < self.DESIRED_WORKERS:
+        #     value = value - 0.1
         # else:
-        #     numWorkers = len(prevWorkers)
+        #     value = value + 0.1
+        #
+        # if len(soldiers) > self.DESIRED_SOLDIERS:
+        #     value = value - 0.0
+        # else:
+        #     value = value + 0.0
+        #
+        # if len(drone) > 0 or len(ranger) > 0:
+        #     value = value - 1
+        #
+        #
+        # prevApproxSoldierDist = 0
+        # nextOppWorker = getAntList(nextState, oppId, (WORKER,)) if (len(getAntList(nextState, oppId, (WORKER,)))
+        #                                                             > 0) else 0
+        # prevOppWorker = getAntList(prevState, oppId, (WORKER,)) if (len(getAntList(prevState, oppId, (WORKER,)))
+        #                                                             > 0) else 0
+        # numSoldiers = 0
 
-        for idx in range(0, numWorkers):
+    def propagateNeuralNetwork(self, inputs):
+        nodeValues = []
+        numNetNodes = 5
+        output = numNetNodes -1
+        count = 0
+        #nodeVals = [0] * numNetNodes
 
-            targetFood = foodList[0]
-            targetTunnel = self.myTunnel
+        #bias generation = 4 biases for the inputs and 1 for output
+        for count in range(0, numNetNodes):
+            nodeValues[count] = self.weightList[count]
+            count += 1
 
-            # Find the closest food to this ant
-            bestDistSoFar = 1000
-            for food in foodList:
-                if approxDist(prevWorkers[idx].coords, food.coords) < bestDistSoFar:
-                    bestDistSoFar = approxDist(prevWorkers[idx].coords, food.coords)
-                    targetFood = food
+        #25 weights from inputs to hidden nodes
+        for i in range(0, len(inputs)):
+            for j in range(0, numNetNodes -1):
+                nodeValues[j] += inputs[i]*self.weightList[count]
+                count += 1
 
+        #mults. hidden nodes by g fxn
+        for node in range(numNetNodes - 1):
+            nodeValues[node] = g(nodeValues)
 
-            # Find the closest tunnel to this ant
-            if approxDist(prevWorkers[idx].coords, self.myTunnel.coords) < approxDist(prevWorkers[idx].coords, self.myHill.coords):
-                targetTunnel = self.myTunnel
-            else:
-                targetTunnel = self.myHill
+        #4 weights from hidden nodes to output
+        for hiddenNode in range(0, numNetNodes - 1):
+            nodeValues[output] += nodeValues[hiddenNode]*self.weightList[count]
+            count += 1
 
-            # Compare how far we were to how close we are now, reward based on relative distance
-            prevDistTunnel = approxDist(prevWorkers[idx].coords, targetTunnel.coords)
-            #nextDistTunnel = approxDist(workers[idx].coords, targetTunnel.coords)
-            prevDistFood = approxDist(prevWorkers[idx].coords, targetFood.coords)
-            #nextDistFood = approxDist(workers[idx].coords, targetFood.coords)
+        #calcs. g fxn of output
+        nodeValues[output] = self.g(nodeValues[output])
 
-            if (prevWorkers[idx].carrying or prevDistFood == 0) and prevDistTunnel != 0:
-                if(approxDist(prevWorkers[idx].coords, targetTunnel.coords) > 7):
-                    self.tunnelDist = 0.01
-                elif((approxDist(prevWorkers[idx].coords, targetTunnel.coords) > 3)):
-                    self.tunnelDist = 0.03
-                elif((approxDist(prevWorkers[idx].coords, targetTunnel.coords) > 1)):
-                    self.tunnelDist = 0.05
-                elif((approxDist(prevWorkers[idx].coords, targetTunnel.coords) == 0)):
-                    self.tunnelDist = 0.1
-
-                #amount = self.rateMoveOnDist(prevDistTunnel, nextDistTunnel)
-                #value = value + amount
-            else:
-                if(approxDist(prevWorkers[idx].coords, targetFood.coords) > 7):
-                        value = value + 0.01
-                elif((approxDist(prevWorkers[idx].coords, targetFood.coords) > 3)):
-                    value = value + 0.03
-                elif((approxDist(prevWorkers[idx].coords, targetFood.coords) > 1)):
-                    value = value + 0.05
-                elif((approxDist(prevWorkers[idx].coords, targetFood.coords) == 0)):
-                    value = value + 0.1
-
-        if len(self.myFood) > 1:
-            value = value + 0.01
-        elif len(self.myFood) > 3:
-            value = value + 0.05
-        elif len(self.myFood) > 8:
-            value = value + 0.2
-
-
-
-        # amount = self.rateMoveOnDist(prevDistFood, nextDistFood)
-        # value = value + amount
-
-
-        #Ant number preferences
-        # Limit the number of ants we have for each type
-        if len(workers) > self.DESIRED_WORKERS:
-            value = value - 0.5
-        elif len(workers) < self.DESIRED_WORKERS:
-            value = value - 0.1
-        else:
-            value = value + 0.1
-
-        if len(soldiers) > self.DESIRED_SOLDIERS:
-            value = value - 0.0
-        else:
-            value = value + 0.0
-
-        if len(drone) > 0 or len(ranger) > 0:
-            value = value - 1
-
-
-        prevApproxSoldierDist = 0
-        nextOppWorker = getAntList(nextState, oppId, (WORKER,)) if (len(getAntList(nextState, oppId, (WORKER,)))
-                                                                    > 0) else 0
-        prevOppWorker = getAntList(prevState, oppId, (WORKER,)) if (len(getAntList(prevState, oppId, (WORKER,)))
-                                                                    > 0) else 0
-        numSoldiers = 0
-
-
+        return nodeValues
 
 
     ##
@@ -454,7 +386,6 @@ class AIPlayer(Player):
     #
     ##
     def rateState(self, prevState, nextState):
-
 
 
         ###
@@ -629,64 +560,6 @@ class AIPlayer(Player):
 
                 return bestMove
 
-
-        ##
-        # backpropogation
-        # Description: Given a target value and actual value, determines
-        #   how "wrong" the input weights of the perceptrons in the
-        #   neural network are and adjusts them using the backpropogation
-        #   algorithm. The higher the "alpha value", the larger the
-        #   adjustments and vice versa. (See pseudocode in function's
-        #   comments for the algorithm.)
-        #
-        # Notes:
-        #   The neural network's weight matrices are changed by this
-        #   function.
-        #
-        # Parameters:
-        #   self - The object pointer
-        #   targetVal - The expected value of the state (determined
-        #       using evaluateState)
-        #   actualVal - The actual value of the state (found
-        #       using the neural network)
-        #
-        # Return: Nothing
-        #
-        def backpropogation(self, targetVal, actualVal):
-           # determine output perceptron error
-            err = targetVal - actualVal
-            # calculate the delta value using the error
-            delta = actualVal*(1-actualVal)*err
-
-            # hidden layer perceptron errors
-            errs = [weight[0]*delta for weight in self.outputLayerWeights]
-            # calculate the deltas for all of the hidden layer perceptrons
-            # using their respective errors
-            deltas = [b*(1-b)*errs[idx] for idx, b in enumerate(self.hiddenLayerOutputs[0])]
-
-            ##
-            # Backpropogation algorithm!
-            # Adjust each weight in the network:  W_ij = W_ij + alpha * delta_j * x_i where:
-            # W_ij is the weight between nodes i and j
-            # alpha is a learning rate
-            # delta_j is the error term for node j
-            # x_i  is the input that the weight was applied to
-            #
-            # adjust output layer weights
-            self.outputLayerWeights = [[weight[0] + self.alpha*delta*self.hiddenLayerOutputs[0][idx]] for idx, weight in enumerate(self.outputLayerWeights)]
-
-            # adjust hidden layer weights
-            for idx_i, row in enumerate(self.hiddenLayerWeights):
-                for idx_j, weight in enumerate(row):
-                    self.hiddenLayerWeights[idx_i][idx_j] += self.alpha*deltas[idx_j]*self.neuralNetInput[idx_i]
-
-            return
-
-
-
-
-
-
         ##
         # hasWon
         #
@@ -729,6 +602,98 @@ class AIPlayer(Player):
                         return True
 
             return False
+
+        ##
+        # canAttack
+        #
+        # Definition:   Determines whether or not a given ant can attack an enemy ant
+        #
+        # Parameters:
+        #   myInv - the state at the given time
+        #   state - currentState
+        #
+        # Return: If there is no ant there, return False. Otherwise, true
+        def evalQueen(self, myInv, state):
+            queen = myInv.getQueen()
+            # We don't want our queen on top of food or the anthill
+            if queen.coords == getConstrList(nextState, self.playerId, (ANTHILL,))[0].coords or queen.coords == foodList[0] or \
+                                                                                queen.coords == foodList[1]:
+                return 0
+            return 1
+
+        def evalWorkers(self, myInv, state):
+                workers = getAntList(state, self.playerId, (WORKER,))
+                if len(workers) < 1 and len(workers) > 3:
+                    return 0
+                elif len(workers) is 2:
+                    return 0.5
+                return 1
+
+        def evalWorkerCarrying(self, myInv, state):
+                    # Find worker ants not carrying
+                    CarryingWorkers = []
+                    for ant in myInv.ants:
+                        if ant.carrying and ant.type == WORKER:
+                            CarryingWorkers.append(ant)
+
+                    antDistScore = 0
+                    for ant in CarryingWorkers:
+                        minDist = None
+                        tunnelDist = 10000
+                        for tunnel in myInv.getTunnels():
+                            dist = self.dist(state, ant, tunnel.coords)
+                            if dist <= tunnelDist:
+                                tunnelDist = dist
+                        antHillDist = self.dist(state, ant, myInv.getAnthill().coords)
+                        if tunnelDist <= antHillDist:
+                            minDist = tunnelDist
+                        else:
+                            minDist = antHillDist
+                        antDistScore += self.scoreDist(minDist, 14)
+                    if len(CarryingWorkers) > 0:
+                        score = antDistScore / float(len(CarryingWorkers))
+                    else:
+                        return 0
+
+                    return score
+
+        def evalWorkerNotCarrying(self, myInv, state):
+            # Find worker ants not carrying
+            notCarryingWorkers = []
+            for ant in myInv.ants:
+                if (not ant.carrying) and ant.type == WORKER:
+                    notCarryingWorkers.append(ant)
+
+            antDistScore = 0
+            for ant in notCarryingWorkers:
+                minDist = 1000
+                foodList = []
+                for constr in state.inventories[2].constrs:
+                    if constr.type == FOOD:
+                        foodList.append(constr)
+
+                for food in foodList:
+                    dist = self.dist(sate, ant, food.coords)
+                    if dist <= minDist:
+                        minDist = dist
+
+                antDistScore += self.scoreDist(minDist, 14)
+
+            if len(notCarryingWorkers) > 0:
+                score = antDistScore / float(len(notCarryingWorkers))
+            else:
+                return 0
+
+            return score
+
+        def evalFoodCount(self, myInv, state):
+            count = myInv.foodCount / 11
+            return count
+
+
+
+
+
 
 #####
 # Node
