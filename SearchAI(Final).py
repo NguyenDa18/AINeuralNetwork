@@ -35,7 +35,7 @@ class AIPlayer(Player):
     #   inputPlayerId - The id to give the new player (int)
     ##
     def __init__(self, inputPlayerId):
-        super(AIPlayer, self).__init__(inputPlayerId, "WUBBA LUBBA DUB DUB")
+        super(AIPlayer, self).__init__(inputPlayerId, "WUBBA LUBBA DUB DUB Test")
         self.DESIRED_WORKERS = 2
         self.DESIRED_SOLDIERS = 2
         self.MIN_FOOD = 2
@@ -60,7 +60,8 @@ class AIPlayer(Player):
 
 
         ############# NEURAL NETWORK CODE #############
-        self.weightList = []
+        self.weightList = [0.5, 0.2, 0.5, -0.2, -0.8, 0.9, 0.1 , 0.1, 0.1, 0.1, 0.3, 0.6, 0.7 , 0.8, 0.4,
+        -0.5, -0.1, 0.2, 0.5, 0.6, 0.3, 0.1, 0.2, 0.9, -0.7, 0.1, 0.1, 0.1, 0.3]
 
         #biases for each node
         self.biases = []
@@ -137,7 +138,6 @@ class AIPlayer(Player):
     ##
     def getMove(self, currentState):
         move = self.expandCurrentState(currentState, 0)
-        # print "Time to find move: ", time.clock() - begTime
         if move == None:
             move = Move(END, None, None)
 
@@ -195,8 +195,8 @@ class AIPlayer(Player):
         # Grab the playerIDs
         oppId = 0 if self.playerId == 1 else 1
         #
-        # foodList = []
-        # self.myFood = None
+        foodList = []
+        self.myFood = None
         # self.myTunnel = None
         # self.myHill = None
 
@@ -231,37 +231,42 @@ class AIPlayer(Player):
         #     self.myTunnel = getConstrList(prevState, self.playerId, (TUNNEL,))[0]
         # if self.myHill is None:
         #     self.myHill = getConstrList(prevState, self.playerId, (ANTHILL,))[0]
-        # if self.myFood is None:
-        #     foods = getConstrList(prevState, None, (FOOD,))
-        #     self.myFood = foods[0]
-        #     # find the food closest to the tunnel
-        #     bestDistSoFar = 1000  # i.e., infinity
-        #     for food in foods:
-        #         if food.coords[1] < 4:
-        #             foodList.append(food)
+        if self.myFood is None:
+            foods = getConstrList(currentState, None, (FOOD,))
+            self.myFood = foods[0]
+            # find the food closest to the tunnel
+            bestDistSoFar = 1000  # i.e., infinity
+            for food in foods:
+                if food.coords[1] < 4:
+                    foodList.append(food)
 
         #Number of nodes (constant)
-        numNodes = 5
+        numNetNodes = 5
 
         # Array to store inputs
         net_inputs = []
 
-        net_inputs.append(evalQueen(inventory, currentState))
-        net_inputs.append(evalWorkers(inventory, currentState))
-        net_inputs.append(evalWorkerCarrying(inventory, currentState))
-        net_inputs.append(evalWorkerNotCarrying(inventory, currentState))
-        net_inputs.append(evalFoodCount(inventory, currentState))
+        net_inputs.append(self.evalQueen(inventory, currentState, foodList))
+        net_inputs.append(self.evalWorkers(inventory, currentState))
+        net_inputs.append(self.evalWorkerCarrying(inventory, currentState))
+        net_inputs.append(self.evalWorkerNotCarrying(inventory, currentState))
+        net_inputs.append(self.evalFoodCount(inventory, currentState))
 
         #TESTING
         scoreSum = 0.0
         for input in net_inputs:
-            scoreSum += net_inputs
+            scoreSum += input
 
-        target = scoreSum/5.0 #random determine target value
+        target = 1.0
 
         net_outputs = self.propagateNeuralNetwork(net_inputs)
         self.backPropagateNeuralNetwork(target, net_outputs, net_inputs)
         error = net_outputs[numNetNodes - 1] - target
+
+        # print "Error: \n"
+        # print error
+        # print "Weights: \n"
+        # print self.weightList
 
 
         # We need our workers to be moving towards some food.
@@ -353,9 +358,11 @@ class AIPlayer(Player):
         #                                                             > 0) else 0
         # numSoldiers = 0
 
+        return scoreSum
+
     def propagateNeuralNetwork(self, inputs):
-        nodeValues = []
         numNetNodes = 5
+        nodeValues = [0] * numNetNodes
         output = numNetNodes -1
         count = 0
         #nodeVals = [0] * numNetNodes
@@ -373,7 +380,7 @@ class AIPlayer(Player):
 
         #mults. hidden nodes by g fxn
         for node in range(numNetNodes - 1):
-            nodeValues[node] = gf(nodeValues)
+            nodeValues[node] = self.gfx(nodeValues[node])
 
         #4 weights from hidden nodes to output
         for hiddenNode in range(0, numNetNodes - 1):
@@ -381,7 +388,7 @@ class AIPlayer(Player):
             count += 1
 
         #calcs. g fxn of output
-        nodeValues[output] = self.gf(nodeValues[output])
+        nodeValues[output] = self.gfx(nodeValues[output])
 
         return nodeValues
 
@@ -390,29 +397,37 @@ class AIPlayer(Player):
     def backPropagateNeuralNetwork(self, target, outputs, inputs):
         numNetNodes = 5
         error = target - outputs[numNetNodes-1]
+        counter = (numNetNodes-1) + (numNetNodes-1)*len(inputs)
 
         delta = outputs[numNetNodes - 1]*(1-outputs[numNetNodes - 1])*error
 
+        hiddenErrors = [0] * (numNetNodes-1)
+        hiddenDeltas = [0] * (numNetNodes-1)
+
+        for i in range(numNetNodes - 2):
+            hiddenErrors[i] = self.weightList[counter + 1 + i]*delta
+            hiddenDeltas[i] = outputs[i]*(1 - outputs[i])*hiddenErrors[i]
+
+        hiddenDeltas.append(delta)
+
         for weight in range(len(self.weightList) - 1):
             if weight < numNetNodes:
+                nodeIndex = weight % numNetNodes
                 input = 1
             elif weight > len(self.weightList) - numNetNodes:
+                nodeIndex = numNetNodes - 1
                 inputIdx = weight - (len(self.weightList) - numNetNodes)
                 input = inputs[inputIdx]
             else:
+                nodeIndex = (weight - 1) % (numNetNodes - 1)
                 inputIdx = (weight - numNetNodes) / (numNetNodes - 1)
                 input = inputs[inputIdx]
 
+            #backprop equation
+            self.weightList[weight] += self.ALPHA*hiddenDeltas[nodeIndex]*input
 
 
 
-
-    ##
-    # rateState
-    #
-    # Description: Examines the given state and returns a decimal number
-    #               depending on how "good" the state is
-    #
     # STRATEGY #
     ##############
     # 1) always have workers collecting food
@@ -422,7 +437,7 @@ class AIPlayer(Player):
     #############
     #
     ##
-    def rateState(self, prevState, nextState):
+    # def rateState(self, prevState, nextState):
 
 
         ###
@@ -431,93 +446,102 @@ class AIPlayer(Player):
         #   2) Enemy Queen
         ###
 
-        # If we lost a soldier for some reason, don't try to include it
-        if len(prevSoldiers) > len(soldiers):
-            numSoldiers = len(soldiers)
-        else:
-            numSoldiers = len(prevSoldiers)
+        # # If we lost a soldier for some reason, don't try to include it
+        # if len(prevSoldiers) > len(soldiers):
+        #     numSoldiers = len(soldiers)
+        # else:
+        #     numSoldiers = len(prevSoldiers)
 
-        if prevOppWorker != 0 and nextOppWorker != 0:
-            # They have workers, so go towards them
-            amount = 0
-            for idx in range(0, numSoldiers):
+        # if prevOppWorker != 0 and nextOppWorker != 0:
+        #     # They have workers, so go towards them
+        #     amount = 0
+        #     for idx in range(0, numSoldiers):
+        #
+        #         # find the closest enemy worker for this soldier
+        #         closestDist = 1000
+        #         closestWorker = (0, 0)
+        #         numAttacking = 0
+        #         # for enemyWorker in prevOppWorker:
+        #         #     if approxDist(prevSoldiers[idx].coords, enemyWorker.coords) < closestDist:
+        #         #         closestDist = approxDist(prevSoldiers[idx].coords, enemyWorker.coords)
+        #         #         closestWorker = enemyWorker.coords
+        #
+        #         # # Reward ourselves if we made a move that was closer to an enemy worker
+        #         # prevDistSoldier = approxDist(prevSoldiers[idx].coords, closestWorker)
+        #         # nextDistSoldier = approxDist(soldiers[idx].coords, closestWorker)
+        #
+        #         amount += self.rateMoveOnDist(prevDistSoldier, nextDistSoldier)
+        #
+        #         # Reward ourselves if we can attack them
+        #         if self.canAttack(nextState, soldiers[idx].coords):
+        #             numAttacking = numAttacking + 1
+        #
+        #         if approxDist(soldiers[idx].coords, nextOppWorker[0].coords) == 1 or len(nextOppWorker) == len(
+        #                 prevOppWorker) - 1:
+        #             value = value + .01
+        #
+        #         amount += 0.1 * float(numAttacking) / numSoldiers
+        #
+        #     value = value + amount
+        # #
+        # else:
+            # # They don't have any workers, so go after their queen
+            # if len(soldiers) > 0 and len(prevSoldiers) > 0:
+            #
+            #     amount = 0
+            #     numAttacking = 0
+            #     for idx in range(0, numSoldiers):
+            #
+            #         prevDistSoldier = approxDist(prevSoldiers[idx].coords, getAntList(nextState, oppId, (QUEEN,))[0].coords)
+            #         nextDistSoldier = approxDist(soldiers[idx].coords, getAntList(prevState, oppId, (QUEEN,))[0].coords)
+            #
+            #         # Reward ourselves if the move allows us to attack the queen
+            #         if self.canAttack(nextState, soldiers[idx].coords):
+            #             numAttacking = numAttacking + 1
+            #         else:
+            #             amount += self.rateMoveOnDist(prevDistSoldier, nextDistSoldier)
+            #
+            #     amount += 0.2 * float(numAttacking) / numSoldiers
+            #
+            #     value = value + amount
 
-                # find the closest enemy worker for this soldier
-                closestDist = 1000
-                closestWorker = (0, 0)
-                numAttacking = 0
-                for enemyWorker in prevOppWorker:
-                    if approxDist(prevSoldiers[idx].coords, enemyWorker.coords) < closestDist:
-                        closestDist = approxDist(prevSoldiers[idx].coords, enemyWorker.coords)
-                        closestWorker = enemyWorker.coords
+        # oppId = 0 if self.playerId == 1 else 1
+        #
+        # queen = prevState.inventories[self.playerId].getQueen()
+        #
+        # value = 0
+        #
+        # # We don't want our queen on top of food or the anthill
+        # if queen.coords == getConstrList(nextState, self.playerId, (ANTHILL,))[0].coords or queen.coords == foodList[0] or queen.coords == foodList[1]:
+        #     value = value - .3
+        #
+        # # Edge case: Correct the value if it is below 0
+        # if value < 0:
+        #     value = .001
+        #
+        # return value
 
-                # Reward ourselves if we made a move that was closer to an enemy worker
-                prevDistSoldier = approxDist(prevSoldiers[idx].coords, closestWorker)
-                nextDistSoldier = approxDist(soldiers[idx].coords, closestWorker)
-
-                amount += self.rateMoveOnDist(prevDistSoldier, nextDistSoldier)
-
-                # Reward ourselves if we can attack them
-                if self.canAttack(nextState, soldiers[idx].coords):
-                    numAttacking = numAttacking + 1
-
-                if approxDist(soldiers[idx].coords, nextOppWorker[0].coords) == 1 or len(nextOppWorker) == len(
-                        prevOppWorker) - 1:
-                    value = value + .01
-
-                amount += 0.1 * float(numAttacking) / numSoldiers
-
-            value = value + amount
-
-        else:
-            # They don't have any workers, so go after their queen
-            if len(soldiers) > 0 and len(prevSoldiers) > 0:
-
-                amount = 0
-                numAttacking = 0
-                for idx in range(0, numSoldiers):
-
-                    prevDistSoldier = approxDist(prevSoldiers[idx].coords, getAntList(nextState, oppId, (QUEEN,))[0].coords)
-                    nextDistSoldier = approxDist(soldiers[idx].coords, getAntList(prevState, oppId, (QUEEN,))[0].coords)
-
-                    # Reward ourselves if the move allows us to attack the queen
-                    if self.canAttack(nextState, soldiers[idx].coords):
-                        numAttacking = numAttacking + 1
-                    else:
-                        amount += self.rateMoveOnDist(prevDistSoldier, nextDistSoldier)
-
-                amount += 0.2 * float(numAttacking) / numSoldiers
-
-                value = value + amount
-
-
-        # We don't want our queen on top of food or the anthill
-        if queen.coords == getConstrList(nextState, self.playerId, (ANTHILL,))[0].coords or queen.coords == foodList[0] or \
-                                                                               queen.coords == foodList[1]:
-            value = value - .3
-
-        # Edge case: Correct the value if it is below 0
-        if value < 0:
-            value = .001
-
-        return value
-
-    ##
-    # evalNodeList
-    #
-    # Description: Evaluates a node list and rates all of them
-    #
-    # Parameters:
-    #   nodes - The list of node objects to evaluate
-    #
-    # Returns: The average distance from 0.5 for each node
-    ##
+    # ##
+    # # evalNodeList
+    # #
+    # # Description: Evaluates a node list and rates all of them
+    # #
+    # # Parameters:
+    # #   nodes - The list of node objects to evaluate
+    # #
+    # # Returns: The average distance from 0.5 for each node
+    # ##
     def evalNodeList(self, nodes):
         if len(nodes) == 0:
             return 0
 
+
         totalVal = 0
         for node in nodes:
+            print "Node Value: \n"
+            print node.value
+
+
             totalVal += (node.value - 0.5) / len(nodes)
 
         return totalVal
@@ -542,7 +566,6 @@ class AIPlayer(Player):
         nodeList = []
 
         # Get all states for all moves
-        begTimeList = time.clock()
         for move in moveList:
             if move.moveType != END:
                 antType = -1
@@ -567,13 +590,16 @@ class AIPlayer(Player):
                         ((antType == QUEEN or antType == SOLDIER) and self.canAttack(state, move.coordList[0])):
 
                     nextState = getNextState(state, move)
-                    nodeList.append(Node(move, nextState, self.rateState(state, nextState), state))
+                    val = self.neuralNetEval(state)
+                    print ("Shit \n")
+                    print val
+                    nodeList.append(Node(move, nextState, self.neuralNetEval(state), state))
 
         # EDGE CASE: One of the ants can't move, so it bricks the system. Force an ant to move.
         if len(nodeList) == 0 and len(moveList) != 0:
             for desparateMove in moveList:
                 nextState = getNextState(state, desparateMove)
-                nodeList.append(Node(desparateMove, nextState, self.rateState(state, nextState), state))
+                nodeList.append(Node(desparateMove, nextState, self.neuralNetEval(state), state))
 
 
         # Go deeper if we need to
@@ -650,10 +676,11 @@ class AIPlayer(Player):
     #   state - currentState
     #
     # Return: If there is no ant there, return False. Otherwise, true
-    def evalQueen(self, myInv, state):
+    def evalQueen(self, myInv, state, foodList):
         queen = myInv.getQueen()
+
         # We don't want our queen on top of food or the anthill
-        if queen.coords == getConstrList(nextState, self.playerId, (ANTHILL,))[0].coords or queen.coords == foodList[0] or \
+        if queen.coords == getConstrList(state, self.playerId, (ANTHILL,))[0].coords or queen.coords == foodList[0] or \
                                                                             queen.coords == foodList[1]:
             return 0
         return 1
@@ -710,7 +737,7 @@ class AIPlayer(Player):
                     foodList.append(constr)
 
             for food in foodList:
-                dist = self.dist(sate, ant, food.coords)
+                dist = self.dist(state, ant, food.coords)
                 if dist <= minDist:
                     minDist = dist
 
@@ -726,6 +753,19 @@ class AIPlayer(Player):
     def evalFoodCount(self, myInv, state):
         count = myInv.foodCount / 11
         return count
+
+    def dist(self, gameState, ant, dest):
+        diffX = abs(ant.coords[0] - dest[0])
+        diffY = abs(ant.coords[1] - dest[1])
+        return diffX + diffY
+
+    def scoreDist(self, dist, bound):
+        # score= dif/10 + .5 (for abs(dif) < 5 else dif is +-5)
+        if dist == 0:
+            return 1.0
+        if dist > bound:
+            dist = bound
+        return (-dist + bound)/float(bound)
 
 
 
