@@ -4,7 +4,7 @@ __author__ = "Jacob Kirby and Danh Nguyen"
 
 import random
 import sys
-#import numpy as numpy #for our matrix manipulations
+import math
 
 sys.path.append("..")  # so other modules can be found in parent dir
 from Player import *
@@ -14,7 +14,6 @@ from Ant import UNIT_STATS
 from Move import Move
 from GameState import *
 from AIPlayerUtils import *
-import time
 
 
 
@@ -60,11 +59,14 @@ class AIPlayer(Player):
         self.totalFood = 0
 
 
-        #NEURAL NETWORK code
+        ############# NEURAL NETWORK CODE #############
         self.weightList = []
 
         #biases for each node
         self.biases = []
+
+        #learning rate
+        self.ALPHA = 0.7
 
         #outputs for each node
         self.outputs = [0.0, 0.0, 0.0]
@@ -134,7 +136,6 @@ class AIPlayer(Player):
     # Return: The Move to be made
     ##
     def getMove(self, currentState):
-        begTime = time.clock()
         move = self.expandCurrentState(currentState, 0)
         # print "Time to find move: ", time.clock() - begTime
         if move == None:
@@ -162,6 +163,7 @@ class AIPlayer(Player):
     # initNeuralNet
     #
     # Description: Takes GameState and evaluates it with a neural net
+    # Generates weight list with random numbers first
     #
     def initNeuralNet(self):
         # for each node connection, assign a weight
@@ -170,7 +172,7 @@ class AIPlayer(Player):
             self.weightList.append(weight)
 
     # #
-    # g
+    # gfx
     # Description: applies the 'g' function used by our neural network
     #
     # Parameters:
@@ -178,7 +180,7 @@ class AIPlayer(Player):
     #
     # Return: g(x)
     # #
-    def g(self, x):
+    def gfx(self, x):
         return 1/(1+math.exp(-x))
 
 
@@ -186,10 +188,9 @@ class AIPlayer(Player):
     # neuralNetEval
     #
     # Description: Takes GameState and evaluates it with a neural net
+    # Return: number b/w 0 and 1 that depicts how good the state is
     #
     def neuralNetEval(self, currentState):
-        # Default value is 0.5, we will add/subtract from here
-        # value = 0.5
 
         # Grab the playerIDs
         oppId = 0 if self.playerId == 1 else 1
@@ -239,6 +240,9 @@ class AIPlayer(Player):
         #         if food.coords[1] < 4:
         #             foodList.append(food)
 
+        #Number of nodes (constant)
+        numNodes = 5
+
         # Array to store inputs
         net_inputs = []
 
@@ -248,10 +252,19 @@ class AIPlayer(Player):
         net_inputs.append(evalWorkerNotCarrying(inventory, currentState))
         net_inputs.append(evalFoodCount(inventory, currentState))
 
+        #TESTING
+        scoreSum = 0.0
+        for input in net_inputs:
+            scoreSum += net_inputs
 
-        ###
+        target = scoreSum/5.0 #random determine target value
+
+        net_outputs = self.propagateNeuralNetwork(net_inputs)
+        self.backPropagateNeuralNetwork(target, net_outputs, net_inputs)
+        error = net_outputs[numNetNodes - 1] - target
+
+
         # We need our workers to be moving towards some food.
-        ###
         numWorkers = 0
 
         #
@@ -360,7 +373,7 @@ class AIPlayer(Player):
 
         #mults. hidden nodes by g fxn
         for node in range(numNetNodes - 1):
-            nodeValues[node] = g(nodeValues)
+            nodeValues[node] = gf(nodeValues)
 
         #4 weights from hidden nodes to output
         for hiddenNode in range(0, numNetNodes - 1):
@@ -368,7 +381,7 @@ class AIPlayer(Player):
             count += 1
 
         #calcs. g fxn of output
-        nodeValues[output] = self.g(nodeValues[output])
+        nodeValues[output] = self.gf(nodeValues[output])
 
         return nodeValues
 
