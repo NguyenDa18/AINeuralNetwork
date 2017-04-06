@@ -164,7 +164,10 @@ class AIPlayer(Player):
     # Description: Takes GameState and evaluates it with a neural net
     #
     def initNeuralNet(self):
-        return 0
+        # for each node connection, assign a weight
+        for i in range(0,29):
+            weight = random.uniform(-3,3)
+            self.weightList.append(weight)
 
     # #
     # g
@@ -369,6 +372,27 @@ class AIPlayer(Player):
 
         return nodeValues
 
+    ##
+    # backPropagateNeuralNetwork
+    def backPropagateNeuralNetwork(self, target, outputs, inputs):
+        numNetNodes = 5
+        error = target - outputs[numNetNodes-1]
+
+        delta = outputs[numNetNodes - 1]*(1-outputs[numNetNodes - 1])*error
+
+        for weight in range(len(self.weightList) - 1):
+            if weight < numNetNodes:
+                input = 1
+            elif weight > len(self.weightList) - numNetNodes:
+                inputIdx = weight - (len(self.weightList) - numNetNodes)
+                input = inputs[inputIdx]
+            else:
+                inputIdx = (weight - numNetNodes) / (numNetNodes - 1)
+                input = inputs[inputIdx]
+
+
+
+
 
     ##
     # rateState
@@ -465,230 +489,230 @@ class AIPlayer(Player):
 
         return value
 
-        ##
-        # evalNodeList
-        #
-        # Description: Evaluates a node list and rates all of them
-        #
-        # Parameters:
-        #   nodes - The list of node objects to evaluate
-        #
-        # Returns: The average distance from 0.5 for each node
-        ##
-        def evalNodeList(self, nodes):
-            if len(nodes) == 0:
-                return 0
+    ##
+    # evalNodeList
+    #
+    # Description: Evaluates a node list and rates all of them
+    #
+    # Parameters:
+    #   nodes - The list of node objects to evaluate
+    #
+    # Returns: The average distance from 0.5 for each node
+    ##
+    def evalNodeList(self, nodes):
+        if len(nodes) == 0:
+            return 0
 
-            totalVal = 0
-            for node in nodes:
-                totalVal += (node.value - 0.5) / len(nodes)
+        totalVal = 0
+        for node in nodes:
+            totalVal += (node.value - 0.5) / len(nodes)
 
-            return totalVal
+        return totalVal
 
-        def rateMoveOnDist(self, dist1, dist2):
-            amount = .1 * ((float(dist1) - dist2) / dist1)
-            return amount
+    def rateMoveOnDist(self, dist1, dist2):
+        amount = .1 * ((float(dist1) - dist2) / dist1)
+        return amount
 
-        ##
-        # expandState
-        #
-        # Definition: Expands the given state until the max depth has been reached
-        #
-        # Parameters:
-        #   state - The current state of the game
-        #   currentDepth - The current depth that we are at
-        ##
-        def expandCurrentState(self, state, currentDepth):
+    ##
+    # expandState
+    #
+    # Definition: Expands the given state until the max depth has been reached
+    #
+    # Parameters:
+    #   state - The current state of the game
+    #   currentDepth - The current depth that we are at
+    ##
+    def expandCurrentState(self, state, currentDepth):
 
-            # Find all moves that we can take and take them
-            moveList = listAllLegalMoves(state)
-            nodeList = []
+        # Find all moves that we can take and take them
+        moveList = listAllLegalMoves(state)
+        nodeList = []
 
-            # Get all states for all moves
-            begTimeList = time.clock()
-            for move in moveList:
-                if move.moveType != END:
-                    antType = -1
-                    if getAntAt(state, move.coordList[0]) is not None:
-                        antType = getAntAt(state, move.coordList[0]).type
+        # Get all states for all moves
+        begTimeList = time.clock()
+        for move in moveList:
+            if move.moveType != END:
+                antType = -1
+                if getAntAt(state, move.coordList[0]) is not None:
+                    antType = getAntAt(state, move.coordList[0]).type
 
-                    # We want to check if the queen is on our anthill
-                    onAntHill = False
-                    if move.coordList[len(move.coordList) - 1] == getConstrList(state,self.playerId,(ANTHILL,))[0].coords:
-                        onAntHill = True
+                # We want to check if the queen is on our anthill
+                onAntHill = False
+                if move.coordList[len(move.coordList) - 1] == getConstrList(state,self.playerId,(ANTHILL,))[0].coords:
+                    onAntHill = True
 
-                    # We want to check if our queen is on some food
-                    queenOnFood = False
-                    for food in getConstrList(state, None, (FOOD,)):
-                        if move.coordList[len(move.coordList) - 1] == food.coords:
-                            queenOnFood = True
-                            break
+                # We want to check if our queen is on some food
+                queenOnFood = False
+                for food in getConstrList(state, None, (FOOD,)):
+                    if move.coordList[len(move.coordList) - 1] == food.coords:
+                        queenOnFood = True
+                        break
 
-                    # We don't want to expand certain nodes, I'll let you read this to figure out which ones
-                    if (move.moveType == MOVE_ANT and antType != QUEEN and len(move.coordList) > 1) or move.moveType == BUILD or \
-                            (antType == QUEEN and not (onAntHill or queenOnFood) and move.moveType == MOVE_ANT and len(move.coordList) > 1) or \
-                            ((antType == QUEEN or antType == SOLDIER) and self.canAttack(state, move.coordList[0])):
+                # We don't want to expand certain nodes, I'll let you read this to figure out which ones
+                if (move.moveType == MOVE_ANT and antType != QUEEN and len(move.coordList) > 1) or move.moveType == BUILD or \
+                        (antType == QUEEN and not (onAntHill or queenOnFood) and move.moveType == MOVE_ANT and len(move.coordList) > 1) or \
+                        ((antType == QUEEN or antType == SOLDIER) and self.canAttack(state, move.coordList[0])):
 
-                        nextState = getNextState(state, move)
-                        nodeList.append(Node(move, nextState, self.rateState(state, nextState), state))
+                    nextState = getNextState(state, move)
+                    nodeList.append(Node(move, nextState, self.rateState(state, nextState), state))
 
-            # EDGE CASE: One of the ants can't move, so it bricks the system. Force an ant to move.
-            if len(nodeList) == 0 and len(moveList) != 0:
-                for desparateMove in moveList:
-                    nextState = getNextState(state, desparateMove)
-                    nodeList.append(Node(desparateMove, nextState, self.rateState(state, nextState), state))
+        # EDGE CASE: One of the ants can't move, so it bricks the system. Force an ant to move.
+        if len(nodeList) == 0 and len(moveList) != 0:
+            for desparateMove in moveList:
+                nextState = getNextState(state, desparateMove)
+                nodeList.append(Node(desparateMove, nextState, self.rateState(state, nextState), state))
 
 
-            # Go deeper if we need to
-            if currentDepth != self.depth - 1:
-                for node in nodeList:
-                    # Only expand nodes that were reached by moving
-                    node.value += self.expandCurrentState(node.state, currentDepth + 1)
+        # Go deeper if we need to
+        if currentDepth != self.depth - 1:
+            for node in nodeList:
+                # Only expand nodes that were reached by moving
+                node.value += self.expandCurrentState(node.state, currentDepth + 1)
 
-            # If we are in the middle of recursion, hand back the score. Otherwise, hand back the move to the
-            # best option
-            value = self.evalNodeList(nodeList)
-            if currentDepth > 0:
-                return value
-            else:
-                bestMove = None
-                bestValue = 0
-                for node in nodeList:
-                    if node.value > bestValue:
-                        bestMove = node.move
-                        bestValue = node.value
+        # If we are in the middle of recursion, hand back the score. Otherwise, hand back the move to the
+        # best option
+        value = self.evalNodeList(nodeList)
+        if currentDepth > 0:
+            return value
+        else:
+            bestMove = None
+            bestValue = 0
+            for node in nodeList:
+                if node.value > bestValue:
+                    bestMove = node.move
+                    bestValue = node.value
 
-                return bestMove
+            return bestMove
 
-        ##
-        # hasWon
-        #
-        #   This function was copied from Game.py so we could use it here. Please
-        #   refer to that class to see the description
-        def hasWon(self, state, playerId):
-            opponentId = (playerId + 1) % 2
+    ##
+    # hasWon
+    #
+    #   This function was copied from Game.py so we could use it here. Please
+    #   refer to that class to see the description
+    def hasWon(self, state, playerId):
+        opponentId = (playerId + 1) % 2
 
-            if ((state.phase == PLAY_PHASE) and
-                    ((state.inventories[opponentId].getQueen() == None) or
-                         (state.inventories[opponentId].getAnthill().captureHealth <= 0) or
-                         (state.inventories[playerId].foodCount >= FOOD_GOAL) or
-                         (state.inventories[opponentId].foodCount == 0 and
-                                  len(state.inventories[opponentId].ants) == 1))):
-                return True
-            else:
-                return False
-
-        ##
-        # canAttack
-        #
-        # Definition:   Determines whether or not a given ant can attack an enemy ant
-        #
-        # Parameters:
-        #   state - the state at the given time
-        #   coord - The coordinate of the ant in question
-        #
-        # Return: If there is no ant there, return False. Otherwise, true or false if an enemy ant is adjacent or not
-        def canAttack(self, state, coord):
-            # If there is no ant there, return False
-            if getAntAt(state,coord) is None:
-                return False
-
-            # Determine whether an enemy ant is nearby
-            adjacent = listAdjacent(coord)
-            for spot in adjacent:
-                ant = getAntAt(state, spot)
-                if ant is not None and ant.player is not self.playerId:
-                    if spot[0] == ant.coords[0] or spot[1] == ant.coords[1]:
-                        return True
-
+        if ((state.phase == PLAY_PHASE) and
+                ((state.inventories[opponentId].getQueen() == None) or
+                     (state.inventories[opponentId].getAnthill().captureHealth <= 0) or
+                     (state.inventories[playerId].foodCount >= FOOD_GOAL) or
+                     (state.inventories[opponentId].foodCount == 0 and
+                              len(state.inventories[opponentId].ants) == 1))):
+            return True
+        else:
             return False
 
-        ##
-        # canAttack
-        #
-        # Definition:   Determines whether or not a given ant can attack an enemy ant
-        #
-        # Parameters:
-        #   myInv - the state at the given time
-        #   state - currentState
-        #
-        # Return: If there is no ant there, return False. Otherwise, true
-        def evalQueen(self, myInv, state):
-            queen = myInv.getQueen()
-            # We don't want our queen on top of food or the anthill
-            if queen.coords == getConstrList(nextState, self.playerId, (ANTHILL,))[0].coords or queen.coords == foodList[0] or \
-                                                                                queen.coords == foodList[1]:
+    ##
+    # canAttack
+    #
+    # Definition:   Determines whether or not a given ant can attack an enemy ant
+    #
+    # Parameters:
+    #   state - the state at the given time
+    #   coord - The coordinate of the ant in question
+    #
+    # Return: If there is no ant there, return False. Otherwise, true or false if an enemy ant is adjacent or not
+    def canAttack(self, state, coord):
+        # If there is no ant there, return False
+        if getAntAt(state,coord) is None:
+            return False
+
+        # Determine whether an enemy ant is nearby
+        adjacent = listAdjacent(coord)
+        for spot in adjacent:
+            ant = getAntAt(state, spot)
+            if ant is not None and ant.player is not self.playerId:
+                if spot[0] == ant.coords[0] or spot[1] == ant.coords[1]:
+                    return True
+
+        return False
+
+    ##
+    # canAttack
+    #
+    # Definition:   Determines whether or not a given ant can attack an enemy ant
+    #
+    # Parameters:
+    #   myInv - the state at the given time
+    #   state - currentState
+    #
+    # Return: If there is no ant there, return False. Otherwise, true
+    def evalQueen(self, myInv, state):
+        queen = myInv.getQueen()
+        # We don't want our queen on top of food or the anthill
+        if queen.coords == getConstrList(nextState, self.playerId, (ANTHILL,))[0].coords or queen.coords == foodList[0] or \
+                                                                            queen.coords == foodList[1]:
+            return 0
+        return 1
+
+    def evalWorkers(self, myInv, state):
+            workers = getAntList(state, self.playerId, (WORKER,))
+            if len(workers) < 1 and len(workers) > 3:
                 return 0
+            elif len(workers) is 2:
+                return 0.5
             return 1
 
-        def evalWorkers(self, myInv, state):
-                workers = getAntList(state, self.playerId, (WORKER,))
-                if len(workers) < 1 and len(workers) > 3:
-                    return 0
-                elif len(workers) is 2:
-                    return 0.5
-                return 1
+    def evalWorkerCarrying(self, myInv, state):
+                # Find worker ants not carrying
+                CarryingWorkers = []
+                for ant in myInv.ants:
+                    if ant.carrying and ant.type == WORKER:
+                        CarryingWorkers.append(ant)
 
-        def evalWorkerCarrying(self, myInv, state):
-                    # Find worker ants not carrying
-                    CarryingWorkers = []
-                    for ant in myInv.ants:
-                        if ant.carrying and ant.type == WORKER:
-                            CarryingWorkers.append(ant)
-
-                    antDistScore = 0
-                    for ant in CarryingWorkers:
-                        minDist = None
-                        tunnelDist = 10000
-                        for tunnel in myInv.getTunnels():
-                            dist = self.dist(state, ant, tunnel.coords)
-                            if dist <= tunnelDist:
-                                tunnelDist = dist
-                        antHillDist = self.dist(state, ant, myInv.getAnthill().coords)
-                        if tunnelDist <= antHillDist:
-                            minDist = tunnelDist
-                        else:
-                            minDist = antHillDist
-                        antDistScore += self.scoreDist(minDist, 14)
-                    if len(CarryingWorkers) > 0:
-                        score = antDistScore / float(len(CarryingWorkers))
+                antDistScore = 0
+                for ant in CarryingWorkers:
+                    minDist = None
+                    tunnelDist = 10000
+                    for tunnel in myInv.getTunnels():
+                        dist = self.dist(state, ant, tunnel.coords)
+                        if dist <= tunnelDist:
+                            tunnelDist = dist
+                    antHillDist = self.dist(state, ant, myInv.getAnthill().coords)
+                    if tunnelDist <= antHillDist:
+                        minDist = tunnelDist
                     else:
-                        return 0
+                        minDist = antHillDist
+                    antDistScore += self.scoreDist(minDist, 14)
+                if len(CarryingWorkers) > 0:
+                    score = antDistScore / float(len(CarryingWorkers))
+                else:
+                    return 0
 
-                    return score
+                return score
 
-        def evalWorkerNotCarrying(self, myInv, state):
-            # Find worker ants not carrying
-            notCarryingWorkers = []
-            for ant in myInv.ants:
-                if (not ant.carrying) and ant.type == WORKER:
-                    notCarryingWorkers.append(ant)
+    def evalWorkerNotCarrying(self, myInv, state):
+        # Find worker ants not carrying
+        notCarryingWorkers = []
+        for ant in myInv.ants:
+            if (not ant.carrying) and ant.type == WORKER:
+                notCarryingWorkers.append(ant)
 
-            antDistScore = 0
-            for ant in notCarryingWorkers:
-                minDist = 1000
-                foodList = []
-                for constr in state.inventories[2].constrs:
-                    if constr.type == FOOD:
-                        foodList.append(constr)
+        antDistScore = 0
+        for ant in notCarryingWorkers:
+            minDist = 1000
+            foodList = []
+            for constr in state.inventories[2].constrs:
+                if constr.type == FOOD:
+                    foodList.append(constr)
 
-                for food in foodList:
-                    dist = self.dist(sate, ant, food.coords)
-                    if dist <= minDist:
-                        minDist = dist
+            for food in foodList:
+                dist = self.dist(sate, ant, food.coords)
+                if dist <= minDist:
+                    minDist = dist
 
-                antDistScore += self.scoreDist(minDist, 14)
+            antDistScore += self.scoreDist(minDist, 14)
 
-            if len(notCarryingWorkers) > 0:
-                score = antDistScore / float(len(notCarryingWorkers))
-            else:
-                return 0
+        if len(notCarryingWorkers) > 0:
+            score = antDistScore / float(len(notCarryingWorkers))
+        else:
+            return 0
 
-            return score
+        return score
 
-        def evalFoodCount(self, myInv, state):
-            count = myInv.foodCount / 11
-            return count
+    def evalFoodCount(self, myInv, state):
+        count = myInv.foodCount / 11
+        return count
 
 
 
