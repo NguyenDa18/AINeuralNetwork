@@ -1,164 +1,393 @@
-__author__ = "Jacob Kirby and Danh Nguyen"
-#CS421
-#Neural Network
+__author__ = 'Danh Nguyen and Jacob Kirby'
 
-import random
-import sys
-import math
-
-sys.path.append("..")  # so other modules can be found in parent dir
+import random, time
 from Player import *
 from Constants import *
-from Construction import CONSTR_STATS
-from Ant import UNIT_STATS
+from Construction import *
+from Ant import *
 from Move import Move
-from GameState import *
+from GameState import addCoords
 from AIPlayerUtils import *
+import math
 
+#Python representation of infinity
+INFINITY = float("inf")
 
+# dictionary representation of a node in the search tree
+treeNode = {
+    # the Move that would be taken in the given state from the parent node
+    "move"    : None,
+    # the state that would be reached by taking the above move
+    "state"   : None,
+    # an evaluation of the next_state
+    "score"   : 0.0,
+    # a reference to the parent node
+    "parent"  : None
+}
 
 ##
-# AIPlayer
-# Description: The responsbility of this class is to interact with the game by
-# deciding a valid move based on a given game state. This class has methods that
-# will be implemented by students in Dr. Nuxoll's AI course.
-
+#AIPlayer
+#Description: The responsbility of this class is to interact with the game by
+#deciding a valid move based on a given game state. This class has methods that
+#will be implemented by students in Dr. Nuxoll's AI course.
 #
-# Variables:
+#Variables:
 #   playerId - The id of the player.
 ##
 class AIPlayer(Player):
-    # __init__
-    # Description: Creates a new Player
+
+    #__init__
+    #Description: Creates a new Player
     #
-    # Parameters:
+    #Parameters:
     #   inputPlayerId - The id to give the new player (int)
     ##
     def __init__(self, inputPlayerId):
-        super(AIPlayer, self).__init__(inputPlayerId, "WUBBA LUBBA DUB DUB Test")
-        self.DESIRED_WORKERS = 2
-        self.DESIRED_SOLDIERS = 2
-        self.MIN_FOOD = 2
-        self.depth = 2
-        # self.WINNING_VALUE = 1000
-        # self.LOSING_VALUE = 0
-
-
-
-
-        #input 0
-        self.tunnelDist = 0
-
-        #input 1
-        self.hillDist = 0
-
-        #input 2
-        self.totalWorkers = 0
-
-        #input 3
-        self.totalFood = 0
-
+        # a depth limit for the search algorithm
+        self.depthLimit = 3
+        super(AIPlayer,self).__init__(inputPlayerId, "TEST BRUISER CRUISER")
 
         ############# NEURAL NETWORK CODE #############
-        self.weightList = [0.5, 0.2, 0.5, -0.2, -0.8, 0.9, 0.1 , 0.1, 0.1, 0.1, 0.3, 0.6, 0.7 , 0.8, 0.4,
-        -0.5, -0.1, 0.2, 0.5, 0.6, 0.3, 0.1, 0.2, 0.9, -0.7, 0.1, 0.1, 0.1, 0.3]
-
+        self.weightList = [0.9836148983403992, 0.27973053332555825, 0.8760461326118066, -0.33343, 1.9102820505439173,
+                           0.9828365968678142, 0.11864432002059076, 0.17976855640452372, 0.1, 0.5836148983403951,
+                           0.37973053332555756, 0.9760461326118066, 0.7, 0.8769099929280543, 0.4172951874936439,
+                           -0.3959125983634327, -0.1, 0.5338010375505289, 0.5498737299684558, 0.8124731441831693, 0.3,
+                           0.1, 0.2, 0.9, -0.7, 2.810282050543916, 0.4268403577148738, 2.0795444233961744, 0.3]
         #biases for each node
         self.biases = []
 
         #learning rate
-        self.ALPHA = 0.7
+        self.ALPHA = .3
 
         #outputs for each node
         self.outputs = [0.0, 0.0, 0.0]
 
 
+
     ##
-    # getPlacement
+    #getPlacement
+    #Description: The getPlacement method corresponds to the
     #
-    # Description: called during setup phase for each Construction that
-    #   must be placed by the player.  These items are: 1 Anthill on
-    #   the player's side; 1 tunnel on player's side; 9 grass on the
-    #   player's side; and 2 food on the enemy's side.
+    #Parameters:
+    #   currentState - The current state of the game at the time the Game is
+    #       requesting a placement from the player.(GameState)
     #
-    # Parameters:
-    #   construction - the Construction to be placed.
-    #   currentState - the state of the game at this point in time.
+    #Return: If setup phase 1: list of ten 2-tuples of ints -> [(x1,y1), (x2,y2),?,(x10,y10)]
+    #       If setup phase 2: list of two 2-tuples of ints -> [(x1,y1), (x2,y2)]
     #
-    # Return: The coordinates of where the construction is to be placed
-    ##
     def getPlacement(self, currentState):
         numToPlace = 0
-        # implemented by students to return their next move
-        if currentState.phase == SETUP_PHASE_1:  # stuff on my side
+        #implemented by students to return their next move
+        if currentState.phase == SETUP_PHASE_1:    #stuff on my side
             numToPlace = 11
             moves = []
             for i in range(0, numToPlace):
                 move = None
                 while move == None:
-                    # Choose any x location
+                    #Choose any x location
                     x = random.randint(0, 9)
-                    # Choose any y location on your side of the board
+                    #Choose any y location on your side of the board
                     y = random.randint(0, 3)
-                    # Set the move if this space is empty
+                    #Set the move if this space is empty
                     if currentState.board[x][y].constr == None and (x, y) not in moves:
                         move = (x, y)
-                        # Just need to make the space non-empty. So I threw whatever I felt like in there.
+                        #Just need to make the space non-empty. So I threw whatever I felt like in there.
                         currentState.board[x][y].constr == True
                 moves.append(move)
             return moves
-        elif currentState.phase == SETUP_PHASE_2:  # stuff on foe's side
+        elif currentState.phase == SETUP_PHASE_2:   #stuff on foe's side
             numToPlace = 2
             moves = []
             for i in range(0, numToPlace):
                 move = None
                 while move == None:
-                    # Choose any x location
+                    #Choose any x location
                     x = random.randint(0, 9)
-                    # Choose any y location on enemy side of the board
+                    #Choose any y location on enemy side of the board
                     y = random.randint(6, 9)
-                    # Set the move if this space is empty
+                    #Set the move if this space is empty
                     if currentState.board[x][y].constr == None and (x, y) not in moves:
                         move = (x, y)
-                        # Just need to make the space non-empty. So I threw whatever I felt like in there.
+                        #Just need to make the space non-empty. So I threw whatever I felt like in there.
                         currentState.board[x][y].constr == True
                 moves.append(move)
             return moves
         else:
             return [(0, 0)]
 
+
     ##
-    # getMove
-    # Description: Gets the next move from the Player.
+    #getMove
+    #Description: The getMove method corresponds to the play phase of the game
+    #and requests from the player a Move object. All types are symbolic
     #
-    # Parameters:
-    #   currentState - The state of the current game waiting for the player's move (GameState)
+    #Parameters:
+    #   currentState - The current state of the game at the time the Game is
+    #       requesting a move from the player.(GameState)
     #
-    # Return: The Move to be made
-    ##
+    #Return: Move(moveType [int], coordList [list of 2-tuples of ints], buildType [int]
+    #
     def getMove(self, currentState):
-        move = self.expandCurrentState(currentState, 0)
-        if move == None:
-            move = Move(END, None, None)
+        # save our id and inventory
+        me = currentState.whoseTurn
+        myInv = getCurrPlayerInventory(currentState)
 
-        return move
+        #create the initial node to analyze
+        initNode = self.makeNode(None, currentState, None)
+
+        ###########################################################
+        ############### HANDLE ALPHA BETA PRUNING #################
+        ###########################################################
+        bestNode = self.find_max(initNode, -INFINITY, INFINITY, 0)
+        while bestNode["parent"]["parent"] is not None:
+            bestNode = bestNode["parent"]
+
+        return bestNode["move"]
 
     ##
-    # getAttack
-    # Description: Gets the attack to be made from the Player
+    #getAttack
+    #Description: The getAttack method is called on the player whenever an ant completes
     #
-    # Parameters:
-    #   currentState - A clone of the current state (GameState)
-    #   attackingAnt - The ant currently making the attack (Ant)
-    #   enemyLocation - The Locations of the Enemies that can be attacked (Location[])
+    #Return: A coordinate that matches one of the entries of enemyLocations. ((int,int))
     ##
     def getAttack(self, currentState, attackingAnt, enemyLocations):
-        # Attack a random enemy.
+        #Attack a random enemy.
         return enemyLocations[random.randint(0, len(enemyLocations) - 1)]
 
-    #----------------------------------------------------------------------------------------------------------------#
-                                            #HW5: NEURAL NETS#
-    #----------------------------------------------------------------------------------------------------------------#
+    ##################################################################################
+    ########################### HW3: MINIMAX SEARCH #################################
+    ##################################################################################
+    ##
+    # makeNode
+    # Description: Creates a node with values set based on parameters
+    #
+    # Parameters:
+    #   self - The object pointer
+    #   move - The move that leads to the resultingState
+    #   resultingState - The state that results from making the move
+    #   parent - The parent node of the node being created
+    #
+    # Returns: A new node with the values initialized using the parameters
+    #
+    def makeNode(self, move, resultingState, parent):
+        # Create a new node using treeNode as a model
+        nextNode = treeNode.copy()
+        # set the move
+        nextNode["move"] = move
+        # set the state that results from making the move
+        nextNode["state"] = resultingState
+        # set the value of the resulting state
+        nextNode["score"] = self.neuralNetEval(resultingState)
+        # store a reference to the parent of this node
+        nextNode["parent"] = parent
+
+        return nextNode
+
+    ##
+    # find_max
+    # Description: returns the best move our player can make from the current state
+    #
+    # Parameters:
+    #   self - the object pointer
+    #   node - the current node, before any moves are explored
+    #   alpha - the alpha value, the value of our best move
+    #   beta - the value of the opponent's best move
+    #   currentDepth - the current depth of the node from the initial node
+    #
+    # Returns: the move which benefits the opposing player the least (alpha).
+    #
+    def find_max(self, node, alpha, beta, currentDepth):
+        value = -INFINITY
+
+        # base case, depthLimit reached, return the value of the currentState
+        if currentDepth == self.depthLimit:
+            return node
+        state = node["state"]
+
+        # holds a list of nodes reachable from the currentState
+        nodeList = []
+        # loop through all legal moves for the currentState
+        for move in listAllLegalMoves(state):
+            # don't evaluate for the queen unless we need to build a worker
+            if move.moveType == MOVE_ANT:
+                initialCoords = move.coordList[0]
+                if ((getAntAt(state, initialCoords).type == QUEEN) and
+                    len(state.inventories[state.whoseTurn].ants) >= 2):
+                        continue
+
+            # get the simulated state if the move were made
+            resultingState = self.getNextStateAdversarial(state, move)
+
+            #create a nextNode for the simulated state
+            nextNode = self.makeNode(move, resultingState, node)
+
+            # if a goal state has been found, stop evaluating other branches
+            if nextNode["score"] == 1.0:
+                return nextNode
+            nodeList.append(nextNode)
+
+        #sort nodes from greatest to least
+        sortedNodeList = sorted(nodeList, key=lambda k: k['score'], reverse=True)
+
+        #holds a reference to the current best node to move to
+        optimalValNode = None
+
+        #if it is our turn
+        if (self.playerId == state.whoseTurn):
+            for selectNode in sortedNodeList:
+                maxValNode = self.find_max(selectNode, alpha, beta, currentDepth + 1)
+                #if we're in find_max, stay in find_max
+                if value < maxValNode["score"]:
+                        optimalValNode = maxValNode
+                        value = maxValNode["score"]
+                if value >= beta:
+                    return maxValNode
+                alpha = max(alpha, value)
+        #If it is the opponent's turn
+        else:
+            sortedNodeList = sorted(nodeList, key=lambda k: k['score'])
+            for selectNode in sortedNodeList:
+                maxValNode = self.find_min(selectNode, alpha, beta, currentDepth + 1)
+                #if it's the opponent's turn and they're in find_max, change to find_min
+                if value < maxValNode["score"]:
+                       optimalValNode = maxValNode
+                       value = maxValNode["score"]
+                if value >= beta:
+                    return maxValNode
+                alpha = max(alpha, value)
+
+        return optimalValNode
+
+    ##
+    # find_min
+    # Description: returns the best move our opponent can make from the current state
+    #
+    # Parameters:
+    #   self - the object pointer
+    #   node - the current node, before any moves are explored
+    #   alpha - the alpha value, value of our best move
+    #   beta - the value of the opponent's best move
+    #   currentDepth - the current depth of the node from the initial node
+    #
+    # Returns: the move which benefits the opposing player the least (alpha).
+    #
+    def find_min(self, node, alpha, beta, currentDepth):
+        # base case, depthLimit reached, return the value of the currentState
+        if currentDepth == self.depthLimit:
+            return node
+        state = node["state"]
+        value = INFINITY
+
+        # holds a list of nodes reachable from the currentState
+        nodeList = []
+        # loop through all legal moves for the currentState
+        for move in listAllLegalMoves(state):
+            # don't evaluate for the queen unless we need to build a worker
+            if move.moveType == MOVE_ANT:
+                initialCoords = move.coordList[0]
+                if ((getAntAt(state, initialCoords).type == QUEEN) and
+                    len(state.inventories[state.whoseTurn].ants) >= 2):
+                        continue
+
+            # get the simulated state if the move were made
+            resultingState = self.getNextStateAdversarial(state, move)
+            #create a nextNode for the simulated state
+            nextNode = self.makeNode(move, resultingState, node)
+
+            # if a goal state has been found, stop evaluating other branches
+            if nextNode["score"] == 0.0:
+                return nextNode
+            nodeList.append(nextNode)
+
+        #sort nodes from least to greatest
+        sortedNodeList = sorted(nodeList, key=lambda k: k['score'])
+
+        #holds a reference to the current best node to move to
+        optimalValNode = None
+
+        #if it is our turn
+        if (self.playerId == state.whoseTurn):
+            for selectNode in sortedNodeList:
+                minValNode = self.find_max(selectNode, alpha, beta, currentDepth + 1)
+                #if we're in find_max, stay in find_max
+                if value > minValNode["score"]:
+                        optimalValNode = minValNode
+                        value = minValNode["score"]
+                if value <= alpha:
+                    return minValNode
+                beta = min(beta, value)
+        #If it is the opponent's turn
+        else:
+            for selectNode in sortedNodeList:
+                minValNode = self.find_min(selectNode, alpha, beta, currentDepth + 1)
+                #if the opponent is in find_max, change to find_min
+                if value > minValNode["score"]:
+                       optimalValNode = minValNode
+                       value = minValNode["score"]
+                if value <= alpha:
+                    return minValNode
+                beta = min(beta, value)
+
+        return optimalValNode
+
+    ##
+    # getNextStateAdversarial
+    # Description: The getNextStateAdversarial method looks at the current state and simulates a move,
+    # taking into consideration that the agents have to take turns
+    # Parameters:
+    #   currentState -the state our game is in
+    #   move -move we will simulate
+    #
+    # Return: The resulting state after move is made
+    #
+    def getNextStateAdversarial(self, currentState, move):
+        nextState = currentState.fastclone()
+        # Find our inventory and enemies inventory
+        clonedInventory = None
+        enemyInventory = None
+        if nextState.inventories[PLAYER_ONE].player == self.playerId:
+            clonedInventory = nextState.inventories[PLAYER_ONE]
+            enemyInventory = nextState.inventories[PLAYER_TWO]
+        else:
+            clonedInventory = nextState.inventories[PLAYER_TWO]
+            enemyInventory = nextState.inventories[PLAYER_ONE]
+
+        # Check if move is a build move, ignore it
+        if move.moveType == BUILD:
+            pass
+        elif move.moveType == MOVE_ANT:
+            startCoord = move.coordList[0]
+            finalCoord = move.coordList[-1]
+            # Update the coordinates of the ant to move
+            for ant in clonedInventory.ants:
+                if ant.coords == startCoord:
+                    # update the ant's coords
+                    ant.coords = finalCoord
+                    adjacentTiles = listAdjacent(ant.coords)
+                    for adj in adjacentTiles:
+                        if getAntAt(nextState, adj) is not None:
+                            closeAnt = getAntAt(nextState, adj)
+                            if closeAnt.player != nextState.whoseTurn:
+                                closeAnt.health = closeAnt.health - UNIT_STATS[ant.type][ATTACK]
+                                if closeAnt.health <= 0:
+                                    enemyAnts = enemyInventory.ants
+                                    for enemy in enemyAnts:
+                                        if closeAnt.coords == enemy.coords:
+                                            enemyInventory.ants.remove(enemy)
+                                break
+                            break
+        #copied from getNextStateAdversarial in AIPlayerUtils
+        elif move.moveType == END:
+            for ant in clonedInventory.ants:
+                ant.hasMoved = False
+            nextState.whoseTurn = 1 - currentState.whoseTurn;
+
+        return nextState
+
+
+    # ----------------------------------------------------------------------------------------------------------------#
+    # HW5: NEURAL NETS#
+    # ----------------------------------------------------------------------------------------------------------------#
     ##
     # initNeuralNet
     #
@@ -167,29 +396,31 @@ class AIPlayer(Player):
     #
     def initNeuralNet(self):
         # for each node connection, assign a weight
-        for i in range(0,29):
-            weight = random.uniform(-3,3)
+        for i in range(0, 29):
+            weight = random.uniform(-3, 3)
             self.weightList.append(weight)
 
-    # #
-    # gfx
-    # Description: applies the 'g' function used by our neural network
-    #
-    # Parameters:
-    #   x - the variable to apply g to
-    #
-    # Return: g(x)
-    # #
+            # #
+            # gfx
+            # Description: applies the 'g' function used by our neural network
+            #
+            # Parameters:
+            #   x - the variable to apply g to
+            #
+            # Return: g(x)
+            # #
+
     def gfx(self, x):
-        return 1/(1+math.exp(-x))
+        return 1 / (1 + math.exp(-x))
 
 
-    ##
-    # neuralNetEval
-    #
-    # Description: Takes GameState and evaluates it with a neural net
-    # Return: number b/w 0 and 1 that depicts how good the state is
-    #
+        ##
+        # neuralNetEval
+        #
+        # Description: Takes GameState and evaluates it with a neural net
+        # Return: number b/w 0 and 1 that depicts how good the state is
+        #
+
     def neuralNetEval(self, currentState):
 
         # Grab the playerIDs
@@ -203,34 +434,15 @@ class AIPlayer(Player):
         # ##### OUR STUFF #####
         inventory = getCurrPlayerInventory(currentState)
 
-
         # Winning/losing conditions
-        if self.hasWon(currentState, oppId): #we lose
+        if self.hasWon(currentState, oppId):  # we lose
             value = 0
             return value
-        elif self.hasWon(currentState, self.playerId): #we win
+        elif self.hasWon(currentState, self.playerId):  # we win
             value = 1
             return value
-        # workers = getAntList(nextState, self.playerId, (WORKER,))
-        # soldiers = getAntList(nextState, self.playerId, (SOLDIER,))
-        # drone = getAntList(nextState, self.playerId, (DRONE,))
-        # ranger = getAntList(nextState, self.playerId, (R_SOLDIER,))
-        # queen = inventory.getQueen()
-        # #
-        # prevInventory = getCurrPlayerInventory(prevState)
-        # prevWorkers = getAntList(prevState, self.playerId, (WORKER,))
-        # prevSoldiers = getAntList(prevState, self.playerId, (SOLDIER,))
-        # prevQueen = prevInventory.getQueen()
 
-        # prevOppFighters = getAntList(prevState, oppId, (SOLDIER, DRONE, R_SOLDIER,))
 
-        #
-        # # the first time this method is called, the food and tunnel locations
-        # # need to be recorded in their respective instance variables
-        # if self.myTunnel is None and len(getConstrList(prevState, self.playerId, (TUNNEL,))) > 0:
-        #     self.myTunnel = getConstrList(prevState, self.playerId, (TUNNEL,))[0]
-        # if self.myHill is None:
-        #     self.myHill = getConstrList(prevState, self.playerId, (ANTHILL,))[0]
         if self.myFood is None:
             foods = getConstrList(currentState, None, (FOOD,))
             self.myFood = foods[0]
@@ -240,7 +452,7 @@ class AIPlayer(Player):
                 if food.coords[1] < 4:
                     foodList.append(food)
 
-        #Number of nodes (constant)
+        # Number of nodes (constant)
         numNetNodes = 5
 
         # Array to store inputs
@@ -251,8 +463,8 @@ class AIPlayer(Player):
         net_inputs.append(self.evalWorkerCarrying(inventory, currentState))
         net_inputs.append(self.evalWorkerNotCarrying(inventory, currentState))
         net_inputs.append(self.evalFoodCount(inventory, currentState))
-
-        #TESTING
+        print "net_inputs ", net_inputs
+        # TESTING
         scoreSum = 0.0
         for input in net_inputs:
             scoreSum += input
@@ -260,153 +472,69 @@ class AIPlayer(Player):
         target = 1.0
 
         net_outputs = self.propagateNeuralNetwork(net_inputs)
+        print net_outputs
         self.backPropagateNeuralNetwork(target, net_outputs, net_inputs)
         error = net_outputs[numNetNodes - 1] - target
 
-        # print "Error: \n"
-        # print error
-        # print "Weights: \n"
-        # print self.weightList
-
+        print "Error: \n"
+        print error
 
         # We need our workers to be moving towards some food.
         numWorkers = 0
-
-        #
-        # for idx in range(0, numWorkers):
-        #
-        #     targetFood = foodList[0]
-        #     targetTunnel = self.myTunnel
-        #
-        #     # Find the closest food to this ant
-        #     bestDistSoFar = 1000
-        #     for food in foodList:
-        #         if approxDist(prevWorkers[idx].coords, food.coords) < bestDistSoFar:
-        #             bestDistSoFar = approxDist(prevWorkers[idx].coords, food.coords)
-        #             targetFood = food
-        #
-        #
-        #     # Find the closest tunnel to this ant
-        #     if approxDist(prevWorkers[idx].coords, self.myTunnel.coords) < approxDist(prevWorkers[idx].coords, self.myHill.coords):
-        #         targetTunnel = self.myTunnel
-        #     else:
-        #         targetTunnel = self.myHill
-        #
-        #     # Compare how far we were to how close we are now, reward based on relative distance
-        #     prevDistTunnel = approxDist(prevWorkers[idx].coords, targetTunnel.coords)
-        #     #nextDistTunnel = approxDist(workers[idx].coords, targetTunnel.coords)
-        #     prevDistFood = approxDist(prevWorkers[idx].coords, targetFood.coords)
-        #     #nextDistFood = approxDist(workers[idx].coords, targetFood.coords)
-        #
-        #     if (prevWorkers[idx].carrying or prevDistFood == 0) and prevDistTunnel != 0:
-        #         if(approxDist(prevWorkers[idx].coords, targetTunnel.coords) > 7):
-        #             self.tunnelDist = 0.01
-        #         elif((approxDist(prevWorkers[idx].coords, targetTunnel.coords) > 3)):
-        #             self.tunnelDist = 0.03
-        #         elif((approxDist(prevWorkers[idx].coords, targetTunnel.coords) > 1)):
-        #             self.tunnelDist = 0.05
-        #         elif((approxDist(prevWorkers[idx].coords, targetTunnel.coords) == 0)):
-        #             self.tunnelDist = 0.1
-        #
-        #         #amount = self.rateMoveOnDist(prevDistTunnel, nextDistTunnel)
-        #         #value = value + amount
-        #     else:
-        #         if(approxDist(prevWorkers[idx].coords, targetFood.coords) > 7):
-        #                 value = value + 0.01
-        #         elif((approxDist(prevWorkers[idx].coords, targetFood.coords) > 3)):
-        #             value = value + 0.03
-        #         elif((approxDist(prevWorkers[idx].coords, targetFood.coords) > 1)):
-        #             value = value + 0.05
-        #         elif((approxDist(prevWorkers[idx].coords, targetFood.coords) == 0)):
-        #             value = value + 0.1
-        #
-        # if len(self.myFood) > 1:
-        #     value = value + 0.01
-        # elif len(self.myFood) > 3:
-        #     value = value + 0.05
-        # elif len(self.myFood) > 8:
-        #     value = value + 0.2
-        #
-        #
-        #
-        # # amount = self.rateMoveOnDist(prevDistFood, nextDistFood)
-        # # value = value + amount
-        #
-        #
-        # #Ant number preferences
-        # # Limit the number of ants we have for each type
-        # if len(workers) > self.DESIRED_WORKERS:
-        #     value = value - 0.5
-        # elif len(workers) < self.DESIRED_WORKERS:
-        #     value = value - 0.1
-        # else:
-        #     value = value + 0.1
-        #
-        # if len(soldiers) > self.DESIRED_SOLDIERS:
-        #     value = value - 0.0
-        # else:
-        #     value = value + 0.0
-        #
-        # if len(drone) > 0 or len(ranger) > 0:
-        #     value = value - 1
-        #
-        #
-        # prevApproxSoldierDist = 0
-        # nextOppWorker = getAntList(nextState, oppId, (WORKER,)) if (len(getAntList(nextState, oppId, (WORKER,)))
-        #                                                             > 0) else 0
-        # prevOppWorker = getAntList(prevState, oppId, (WORKER,)) if (len(getAntList(prevState, oppId, (WORKER,)))
-        #                                                             > 0) else 0
-        # numSoldiers = 0
 
         return scoreSum
 
     def propagateNeuralNetwork(self, inputs):
         numNetNodes = 5
         nodeValues = [0] * numNetNodes
-        output = numNetNodes -1
+        output = numNetNodes - 1
         count = 0
-        #nodeVals = [0] * numNetNodes
+        # nodeVals = [0] * numNetNodes
 
-        #bias generation = 4 biases for the inputs and 1 for output
+        # bias generation = 4 biases for the inputs and 1 for output
         for count in range(0, numNetNodes):
             nodeValues[count] = self.weightList[count]
             count += 1
 
-        #25 weights from inputs to hidden nodes
+        # 25 weights from inputs to hidden nodes
         for i in range(0, len(inputs)):
-            for j in range(0, numNetNodes -1):
-                nodeValues[j] += inputs[i]*self.weightList[count]
+            for j in range(0, numNetNodes - 1):
+                nodeValues[j] += inputs[i] * self.weightList[count]
                 count += 1
 
-        #mults. hidden nodes by g fxn
+        # mults. hidden nodes by g fxn
         for node in range(numNetNodes - 1):
             nodeValues[node] = self.gfx(nodeValues[node])
 
-        #4 weights from hidden nodes to output
+        # 4 weights from hidden nodes to output
         for hiddenNode in range(0, numNetNodes - 1):
-            nodeValues[output] += nodeValues[hiddenNode]*self.weightList[count]
+            nodeValues[output] += nodeValues[hiddenNode] * self.weightList[count]
             count += 1
 
-        #calcs. g fxn of output
+        # calcs. g fxn of output
         nodeValues[output] = self.gfx(nodeValues[output])
+
+        print "Node Values: "
+        print nodeValues
 
         return nodeValues
 
-    ##
-    # backPropagateNeuralNetwork
+        ##
+        # backPropagateNeuralNetwork
+
     def backPropagateNeuralNetwork(self, target, outputs, inputs):
         numNetNodes = 5
-        error = target - outputs[numNetNodes-1]
-        counter = (numNetNodes-1) + (numNetNodes-1)*len(inputs)
+        error = target - outputs[numNetNodes - 1]
+        counter = (numNetNodes - 1) + (numNetNodes - 1) * len(inputs)
 
-        delta = outputs[numNetNodes - 1]*(1-outputs[numNetNodes - 1])*error
+        delta = outputs[numNetNodes - 1] * (1 - outputs[numNetNodes - 1]) * error
 
-        hiddenErrors = [0] * (numNetNodes-1)
-        hiddenDeltas = [0] * (numNetNodes-1)
+        hiddenErrors = [0] * (numNetNodes - 1)
+        hiddenDeltas = [0] * (numNetNodes - 1)
 
         for i in range(numNetNodes - 2):
-            hiddenErrors[i] = self.weightList[counter + 1 + i]*delta
-            hiddenDeltas[i] = outputs[i]*(1 - outputs[i])*hiddenErrors[i]
+            hiddenErrors[i] = self.weightList[counter + 1 + i] * delta
+            hiddenDeltas[i] = outputs[i] * (1 - outputs[i]) * hiddenErrors[i]
 
         hiddenDeltas.append(delta)
 
@@ -423,103 +551,8 @@ class AIPlayer(Player):
                 inputIdx = (weight - numNetNodes) / (numNetNodes - 1)
                 input = inputs[inputIdx]
 
-            #backprop equation
-            self.weightList[weight] += self.ALPHA*hiddenDeltas[nodeIndex]*input
-
-
-
-    # STRATEGY #
-    ##############
-    # 1) always have workers collecting food
-    # 2) Build soldiers
-    # 3) Attack opponents workers
-    # 4) Attack opponents queen
-    #############
-    #
-    ##
-    # def rateState(self, prevState, nextState):
-
-
-        ###
-        # We need our soldiers to be moving towards a target. These targets are, in priority:
-        #   1) Enemy Workers
-        #   2) Enemy Queen
-        ###
-
-        # # If we lost a soldier for some reason, don't try to include it
-        # if len(prevSoldiers) > len(soldiers):
-        #     numSoldiers = len(soldiers)
-        # else:
-        #     numSoldiers = len(prevSoldiers)
-
-        # if prevOppWorker != 0 and nextOppWorker != 0:
-        #     # They have workers, so go towards them
-        #     amount = 0
-        #     for idx in range(0, numSoldiers):
-        #
-        #         # find the closest enemy worker for this soldier
-        #         closestDist = 1000
-        #         closestWorker = (0, 0)
-        #         numAttacking = 0
-        #         # for enemyWorker in prevOppWorker:
-        #         #     if approxDist(prevSoldiers[idx].coords, enemyWorker.coords) < closestDist:
-        #         #         closestDist = approxDist(prevSoldiers[idx].coords, enemyWorker.coords)
-        #         #         closestWorker = enemyWorker.coords
-        #
-        #         # # Reward ourselves if we made a move that was closer to an enemy worker
-        #         # prevDistSoldier = approxDist(prevSoldiers[idx].coords, closestWorker)
-        #         # nextDistSoldier = approxDist(soldiers[idx].coords, closestWorker)
-        #
-        #         amount += self.rateMoveOnDist(prevDistSoldier, nextDistSoldier)
-        #
-        #         # Reward ourselves if we can attack them
-        #         if self.canAttack(nextState, soldiers[idx].coords):
-        #             numAttacking = numAttacking + 1
-        #
-        #         if approxDist(soldiers[idx].coords, nextOppWorker[0].coords) == 1 or len(nextOppWorker) == len(
-        #                 prevOppWorker) - 1:
-        #             value = value + .01
-        #
-        #         amount += 0.1 * float(numAttacking) / numSoldiers
-        #
-        #     value = value + amount
-        # #
-        # else:
-            # # They don't have any workers, so go after their queen
-            # if len(soldiers) > 0 and len(prevSoldiers) > 0:
-            #
-            #     amount = 0
-            #     numAttacking = 0
-            #     for idx in range(0, numSoldiers):
-            #
-            #         prevDistSoldier = approxDist(prevSoldiers[idx].coords, getAntList(nextState, oppId, (QUEEN,))[0].coords)
-            #         nextDistSoldier = approxDist(soldiers[idx].coords, getAntList(prevState, oppId, (QUEEN,))[0].coords)
-            #
-            #         # Reward ourselves if the move allows us to attack the queen
-            #         if self.canAttack(nextState, soldiers[idx].coords):
-            #             numAttacking = numAttacking + 1
-            #         else:
-            #             amount += self.rateMoveOnDist(prevDistSoldier, nextDistSoldier)
-            #
-            #     amount += 0.2 * float(numAttacking) / numSoldiers
-            #
-            #     value = value + amount
-
-        # oppId = 0 if self.playerId == 1 else 1
-        #
-        # queen = prevState.inventories[self.playerId].getQueen()
-        #
-        # value = 0
-        #
-        # # We don't want our queen on top of food or the anthill
-        # if queen.coords == getConstrList(nextState, self.playerId, (ANTHILL,))[0].coords or queen.coords == foodList[0] or queen.coords == foodList[1]:
-        #     value = value - .3
-        #
-        # # Edge case: Correct the value if it is below 0
-        # if value < 0:
-        #     value = .001
-        #
-        # return value
+            # backprop equation
+            self.weightList[weight] += self.ALPHA * hiddenDeltas[nodeIndex] * input
 
     # ##
     # # evalNodeList
@@ -531,15 +564,15 @@ class AIPlayer(Player):
     # #
     # # Returns: The average distance from 0.5 for each node
     # ##
+
     def evalNodeList(self, nodes):
         if len(nodes) == 0:
             return 0
 
-
         totalVal = 0
         for node in nodes:
-            print "Node Value: \n"
-            print node.value
+            # print "Node Value: \n"
+            # print node.value
 
 
             totalVal += (node.value - 0.5) / len(nodes)
@@ -550,17 +583,17 @@ class AIPlayer(Player):
         amount = .1 * ((float(dist1) - dist2) / dist1)
         return amount
 
-    ##
-    # expandState
-    #
-    # Definition: Expands the given state until the max depth has been reached
-    #
-    # Parameters:
-    #   state - The current state of the game
-    #   currentDepth - The current depth that we are at
-    ##
-    def expandCurrentState(self, state, currentDepth):
+        ##
+        # expandState
+        #
+        # Definition: Expands the given state until the max depth has been reached
+        #
+        # Parameters:
+        #   state - The current state of the game
+        #   currentDepth - The current depth that we are at
+        ##
 
+    def expandCurrentState(self, state, currentDepth):
         # Find all moves that we can take and take them
         moveList = listAllLegalMoves(state)
         nodeList = []
@@ -574,7 +607,7 @@ class AIPlayer(Player):
 
                 # We want to check if the queen is on our anthill
                 onAntHill = False
-                if move.coordList[len(move.coordList) - 1] == getConstrList(state,self.playerId,(ANTHILL,))[0].coords:
+                if move.coordList[len(move.coordList) - 1] == getConstrList(state, self.playerId, (ANTHILL,))[0].coords:
                     onAntHill = True
 
                 # We want to check if our queen is on some food
@@ -585,14 +618,15 @@ class AIPlayer(Player):
                         break
 
                 # We don't want to expand certain nodes, I'll let you read this to figure out which ones
-                if (move.moveType == MOVE_ANT and antType != QUEEN and len(move.coordList) > 1) or move.moveType == BUILD or \
-                        (antType == QUEEN and not (onAntHill or queenOnFood) and move.moveType == MOVE_ANT and len(move.coordList) > 1) or \
+                if (move.moveType == MOVE_ANT and antType != QUEEN and len(
+                        move.coordList) > 1) or move.moveType == BUILD or \
+                        (antType == QUEEN and not (onAntHill or queenOnFood) and move.moveType == MOVE_ANT and len(
+                            move.coordList) > 1) or \
                         ((antType == QUEEN or antType == SOLDIER) and self.canAttack(state, move.coordList[0])):
-
                     nextState = getNextState(state, move)
                     val = self.neuralNetEval(state)
-                    print ("Shit \n")
-                    print val
+                    # print ("Shit \n")
+                    # print val
                     nodeList.append(Node(move, nextState, self.neuralNetEval(state), state))
 
         # EDGE CASE: One of the ants can't move, so it bricks the system. Force an ant to move.
@@ -600,7 +634,6 @@ class AIPlayer(Player):
             for desparateMove in moveList:
                 nextState = getNextState(state, desparateMove)
                 nodeList.append(Node(desparateMove, nextState, self.neuralNetEval(state), state))
-
 
         # Go deeper if we need to
         if currentDepth != self.depth - 1:
@@ -653,7 +686,7 @@ class AIPlayer(Player):
     # Return: If there is no ant there, return False. Otherwise, true or false if an enemy ant is adjacent or not
     def canAttack(self, state, coord):
         # If there is no ant there, return False
-        if getAntAt(state,coord) is None:
+        if getAntAt(state, coord) is None:
             return False
 
         # Determine whether an enemy ant is nearby
@@ -666,60 +699,61 @@ class AIPlayer(Player):
 
         return False
 
-    ##
-    # canAttack
-    #
-    # Definition:   Determines whether or not a given ant can attack an enemy ant
-    #
-    # Parameters:
-    #   myInv - the state at the given time
-    #   state - currentState
-    #
-    # Return: If there is no ant there, return False. Otherwise, true
+        ##
+        # canAttack
+        #
+        # Definition:   Determines whether or not a given ant can attack an enemy ant
+        #
+        # Parameters:
+        #   myInv - the state at the given time
+        #   state - currentState
+        #
+        # Return: If there is no ant there, return False. Otherwise, true
+
     def evalQueen(self, myInv, state, foodList):
         queen = myInv.getQueen()
 
         # We don't want our queen on top of food or the anthill
         if queen.coords == getConstrList(state, self.playerId, (ANTHILL,))[0].coords or queen.coords == foodList[0] or \
-                                                                            queen.coords == foodList[1]:
+                        queen.coords == foodList[1]:
             return 0
         return 1
 
     def evalWorkers(self, myInv, state):
-            workers = getAntList(state, self.playerId, (WORKER,))
-            if len(workers) < 1 and len(workers) > 3:
-                return 0
-            elif len(workers) is 2:
-                return 0.5
-            return 1
+        workers = getAntList(state, self.playerId, (WORKER,))
+        if len(workers) < 1 and len(workers) > 3:
+            return 0
+        elif len(workers) is 2:
+            return 0.5
+        return 1
 
     def evalWorkerCarrying(self, myInv, state):
-                # Find worker ants not carrying
-                CarryingWorkers = []
-                for ant in myInv.ants:
-                    if ant.carrying and ant.type == WORKER:
-                        CarryingWorkers.append(ant)
+        # Find worker ants not carrying
+        CarryingWorkers = []
+        for ant in myInv.ants:
+            if ant.carrying and ant.type == WORKER:
+                CarryingWorkers.append(ant)
 
-                antDistScore = 0
-                for ant in CarryingWorkers:
-                    minDist = None
-                    tunnelDist = 10000
-                    for tunnel in myInv.getTunnels():
-                        dist = self.dist(state, ant, tunnel.coords)
-                        if dist <= tunnelDist:
-                            tunnelDist = dist
-                    antHillDist = self.dist(state, ant, myInv.getAnthill().coords)
-                    if tunnelDist <= antHillDist:
-                        minDist = tunnelDist
-                    else:
-                        minDist = antHillDist
-                    antDistScore += self.scoreDist(minDist, 14)
-                if len(CarryingWorkers) > 0:
-                    score = antDistScore / float(len(CarryingWorkers))
-                else:
-                    return 0
+        antDistScore = 0
+        for ant in CarryingWorkers:
+            minDist = None
+            tunnelDist = 10000
+            for tunnel in myInv.getTunnels():
+                dist = self.dist(state, ant, tunnel.coords)
+                if dist <= tunnelDist:
+                    tunnelDist = dist
+            antHillDist = self.dist(state, ant, myInv.getAnthill().coords)
+            if tunnelDist <= antHillDist:
+                minDist = tunnelDist
+            else:
+                minDist = antHillDist
+            antDistScore += self.scoreDist(minDist, 14)
+        if len(CarryingWorkers) > 0:
+            score = antDistScore / float(len(CarryingWorkers))
+        else:
+            return 0
 
-                return score
+        return score
 
     def evalWorkerNotCarrying(self, myInv, state):
         # Find worker ants not carrying
@@ -761,30 +795,31 @@ class AIPlayer(Player):
 
     def scoreDist(self, dist, bound):
         # score= dif/10 + .5 (for abs(dif) < 5 else dif is +-5)
+        print "dist", dist
         if dist == 0:
             return 1.0
         if dist > bound:
             dist = bound
-        return (-dist + bound)/float(bound)
+        return (-dist + bound) / float(bound)
 
 
-
-
-
-
-#####
-# Node
+# ## Unit Tests
 #
-# Description:
-#   Node defines a node object which contains a state, a value, a parent node, and a move.
+# #unit test 1##
+# p = AIPlayer(0)
+# p.NUM_NODES = 4
+# p.ALPHA = 0.8
+# p.networkWeights = [0.5, 0.3, -0.3, 0.0, 0.9, 0.2, 0.0, 0.0, -0.4, -0.8, -0.4, 0.1, -0.1]
+# testInputs =  [0,1]
+# output = 0.444
+# out = p.propagateNeuralNetwork(testInputs)
+# diff =  out[p.NUM_NODES-1] - output
+# if diff < 0.03 and diff > -0.03:
+#     print "propagate test passed."
+# else: print "propagate test failed."
 #
-#   Move - The move that will take us to the state
-#   State - The state that would be reached if the move was taken
-#   Parent Node - The node that the move was taken from
-#   Value - The rating for the state, based on our rate node method above
-class Node:
-    def __init__(self, theMove, theState, theValue, theParent):
-        self.move = theMove
-        self.state = theState
-        self.value = theValue
-        self.parent = theParent
+# p.backPropagateNeuralNetwork(1.0, out, testInputs)
+# string = "["
+# for w in p.networkWeights:
+#     string += " {0:.3f} ".format(w)
+# print string, "]"
