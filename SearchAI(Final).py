@@ -155,132 +155,6 @@ class AIPlayer(Player):
         return enemyLocations[random.randint(0, len(enemyLocations) - 1)]
 
     ##
-    # getUtility
-    # Description: Creates a utility value in the range 0-1 with the given state
-    #
-    # Parameters:
-    #   currentState - A clone of the current state (GameState)
-    ##
-    # def getUtility(self, currentState):
-    #     # If our agent has won, return a utility of 1.0
-    #     if self.hasWon(currentState, self.playerId):
-    #         return 1.0
-    #     # If our agent has lost, return a utility of 0
-    #     elif self.hasWon(currentState, (self.playerId + 1) % 2):
-    #         return 0.0
-    #     # Getting our inventory and our enemy's inventory
-    #     for inv in currentState.inventories:
-    #         if inv.player == self.playerId:
-    #             ourInv = inv
-    #         else:
-    #             enemyInv = inv
-    #
-    #     utilities = []
-    #
-    #     # The code below creates a utility value based on the amount of food our agent has in their inventory
-    #     # Weight 0.4
-    #     utilities.append((float(ourInv.foodCount) / 12.0, 0.5))
-    #
-    #     # If our agent has less than three ants this is a bad utility, if our agent has 3 to 5 ants this is a good
-    #     # utility, and if our agent over 5 ants this is a medium utility
-    #     # Weight 0.2
-    #     numAnts = len(ourInv.ants)
-    #     if numAnts == 1:
-    #         antUtil = 0.0
-    #     if numAnts == 2:
-    #         antUtil = .3
-    #     if numAnts == 3:
-    #         antUtil = 1.0
-    #     if numAnts >= 4:
-    #         antUtil = 0.0
-    #
-    #     utilities.append((antUtil, 0.1))
-    #
-    #
-    #     # add points for having a soldier, but try not to make to many
-    #     soldierUtil = 0.0
-    #     numSoldiers = len(getAntList(currentState, self.playerId, (SOLDIER,)))
-    #     if numSoldiers == 1:
-    #         soldierUtil = 0.7
-    #     if numSoldiers == 2:
-    #         soldierUtil = 0.9
-    #     utilities.append((soldierUtil, 0.2))
-    #
-    #     # make the soldiers go to the opp queen and kill it
-    #     oppQueen = getAntList(currentState, not self.playerId, (QUEEN,))
-    #     for soldier in getAntList(currentState, self.playerId, (SOLDIER,)):
-    #        # finds dist from opp queen
-    #         dist = 1 - float(approxDist(soldier.coords, oppQueen[0].coords)) / 30
-    #         utilities.append((dist, 0.06))
-    #
-    #
-    #
-    #             # if the soldier can attack give points
-    #         if self.canAttack(currentState, soldier.coords):
-    #             utilities.append((.9, 0.09))
-    #
-    #     # The code below creates a utility value based on the number of ants the enemy has
-    #     # If the enemy has more than 4 ants this is a bad utility and if the enemy has less it is a good utility
-    #     # Weight 0.1
-    #     enemyNumAnts = len(enemyInv.ants)
-    #     if enemyNumAnts == 1 or enemyNumAnts == 0:
-    #         enemyAntUtil = 1.0
-    #     if enemyNumAnts == 2:
-    #         enemyAntUtil = .7
-    #     if enemyNumAnts == 3:
-    #         enemyAntUtil = .5
-    #     if enemyNumAnts == 4:
-    #         enemyAntUtil = 0.2
-    #     if enemyNumAnts > 4:
-    #         enemyAntUtil = 0.0
-    #     utilities.append((enemyAntUtil, 0.1))
-    #
-    #     # Add utility for each food being carried by an ant worker
-    #     # Does not depend on number of worker ants
-    #     # Weight 0.2
-    #     carryUtil = 0.0
-    #     listOfWorkers = getAntList(currentState, self.playerId, (WORKER,))
-    #     for worker in listOfWorkers:
-    #         if worker.carrying:
-    #             tunnelAndHill = \
-    #                 [float(approxDist(worker.coords, getConstrList(currentState, self.playerId, (TUNNEL,))[0].coords)),
-    #                  float(approxDist(worker.coords, getConstrList(currentState, self.playerId, (ANTHILL,))[0].coords))]
-    #             carryUtil += (0.9 - (min(tunnelAndHill)) / 30.0)
-    #         else:
-    #             foodDistances = [float(approxDist(worker.coords, self.ourFood[0].coords)),
-    #                              float(approxDist(worker.coords, self.ourFood[1].coords))]
-    #             carryUtil += (0.7 - (min(foodDistances) / 30.0))
-    #     carryUtil /= max(len(listOfWorkers), 1)
-    #     carryUtil = min(carryUtil, 1.0)
-    #     utilities.append((carryUtil, 0.2))
-    #
-    #     # Add utility for warriors
-    #     # Wieght
-    #     # warriorUtil = 0.0
-    #     # listOfWarriors = getAntList(currentState, self.playerId, (DRONE, SOLDIER, R_SOLDIER))
-    #     # for warrior in listOfWarriors
-    #
-    #
-    #     # Add utility for Her Majesty's health
-    #     # Subtract utility if she's standing on food, the hill, or the tunnel
-    #     # Weight 0.1
-    #     myBeautifulQueen = getAntList(currentState, self.playerId, (QUEEN,))[0]
-    #     queenUtil = float(myBeautifulQueen.health) / 8.0
-    #     if (myBeautifulQueen.coords == getConstrList(currentState, self.playerId, (ANTHILL,))[0].coords) or \
-    #             (myBeautifulQueen.coords == getConstrList(currentState, self.playerId, (TUNNEL,))[0].coords) or \
-    #             (myBeautifulQueen.coords == self.ourFood[0].coords) or \
-    #             (myBeautifulQueen.coords == self.ourFood[1].coords):
-    #         queenUtil = 0
-    #     utilities.append((queenUtil, 0.1))
-    #
-    #     # Add utilities together with respective weights
-    #     finalUtil = 0.0
-    #     for util in utilities:
-    #         finalUtil += util[0] * util[1]
-    #
-    #     return finalUtil
-
-    ##
     # canAttack
     #
     # Definition:   Determines whether or not a given ant can attack an enemy ant
@@ -373,14 +247,13 @@ class AIPlayer(Player):
             else:
                 nodes.append(self.initNode(move, currNode['nextState'], currNode['isMax'], currNode))
 
-                # shuffle(nodes)
+        # shuffle(nodes)
         if currNode['isMax']:
             nodes = sorted(nodes, key=itemgetter('utility'), reverse=True)[0:7]
         else:
             nodes = sorted(nodes, key=itemgetter('utility'), reverse=False)[0:7]
 
         for node in nodes:
-
             node = self.moveSearch(finalDepth, currDepth + 1, node)
             if currDepth != 0:
                 if currNode['isMax'] and node['utility'] > currNode['bound']:
@@ -416,21 +289,15 @@ class AIPlayer(Player):
         else:
             return currNode
 
-
-            #     # recursively call this method, find path with best average utility
-            #     pathUtil = -1
-            #     for node in nodes:
-            #     	pathToNode = self.moveSearch(node['nextState'], depth+1, node)
-            #     	currUtil = self.evalNode(pathToNode)
-            #     	if currUtil > pathUtil:
-            #     		pathUtil = currUtil
-            #     		favoriteMove = pathToNode
-
-            # # return the best path of moves
-            # favoriteMove.append(currNode)
-            # return favoriteMove
-
-    # Register a win
+    ##
+    # hasWon
+    # Description: This function was copied from Game.py so we could use it here.
+    # Parameters:
+    #   state -the current state
+    #   playerId -current player id
+    #
+    # Return: boolean value for if one side has won
+    #
     def hasWon(self, currentState, playerId):
         opponentId = (playerId + 1) % 2
 
@@ -450,6 +317,7 @@ class AIPlayer(Player):
     # ----------------------------------------------------------------------------------------------------------------#
     # #
     # gfx
+    #
     # Description: applies the 'g' function used by our neural network
     #
     # Parameters:
@@ -529,7 +397,16 @@ class AIPlayer(Player):
 
         return inputSum
 
-
+    # #
+    # rateMoveOnDist
+    # Description: Helper function for evalWorkerCarrying; given two distances, return score
+    #
+    # Parameters:
+    #   dist1 -current location
+    #   dist2 -destination location
+    #
+    # Return: Score of ditance. Value ignored and turned to zero if it is less than zero.
+    # #
     def rateMoveOnDist(self, dist1, dist2):
         amount = .1 * ((float(dist1) - dist2) / dist1)
         return amount
@@ -882,12 +759,13 @@ class AIPlayer(Player):
 
     ##
     # dist
-    # Description: An input we will send to the neural network
+    # Description: Calculates the distance between an ant and coordinate
     # Parameters:
-    #   state -the current state
-    #   playerId -my player id
+    #   gameState - the state of the game.
+    #   ant - the ant
+    #   dest - the destination coord
     #
-    # Return boolean value for if one side has won
+    # Return: Score - based on difference of overall ant distance
     #
     def dist(self, gameState, ant, dest):
         diffX = abs(ant.coords[0] - dest[0])
@@ -896,12 +774,12 @@ class AIPlayer(Player):
 
     ##
     # scoreDist
-    # Description: An input we will send to the neural network
+    # Description: Helper method to provide a score for distance based scores.
     # Parameters:
-    #   state -the current state
-    #   playerId -my player id
+    #   dist -distance between two locations
+    #   bound -maximum possible distance
     #
-    # Return boolean value for if one side has won
+    # Return: Score - based on the distance and uses the bound to normalize number to be between 0 and 1.
     #
     def scoreDist(self, dist, bound):
         # based on a difference and a bound, calcualte a score
